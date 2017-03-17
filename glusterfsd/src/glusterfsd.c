@@ -80,7 +80,7 @@
 #include "exports.h"
 
 #include "daemon.h"
-
+#include "monitoring.h"
 
 /* using argp for command line parsing */
 static char gf_doc[] = "";
@@ -2132,6 +2132,8 @@ glusterfs_sigwaiter (void *arg)
                         break;
                 case SIGUSR2:
                         gf_latency_toggle (sig, glusterfsd_ctx);
+                        /* TODO: Commentout below code to test the feature */
+                        /* gf_monitor_metrics (sig, glusterfsd_ctx); */
                         break;
                 default:
 
@@ -2172,7 +2174,9 @@ glusterfs_signals_setup (glusterfs_ctx_t *ctx)
         sigaddset (&set, SIGTERM);  /* cleanup_and_exit */
         sigaddset (&set, SIGHUP);   /* reincarnate */
         sigaddset (&set, SIGUSR1);  /* gf_proc_dump_info */
-        sigaddset (&set, SIGUSR2);  /* gf_latency_toggle */
+
+        /* TODO: recheck if this breaks anything */
+        sigaddset (&set, SIGUSR2);  /* gf_monitor_metrics */
 
         ret = pthread_sigmask (SIG_BLOCK, &set, NULL);
         if (ret) {
