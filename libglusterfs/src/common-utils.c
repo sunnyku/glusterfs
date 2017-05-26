@@ -4575,6 +4575,7 @@ fop_enum_to_pri_string (glusterfs_fop_t fop)
         case GF_FOP_READDIRP:
         case GF_FOP_GETACTIVELK:
         case GF_FOP_SETACTIVELK:
+        case GF_FOP_DISCOVER:
                 return "HIGH";
 
         case GF_FOP_CREATE:
@@ -4688,6 +4689,7 @@ fop_enum_to_string (glusterfs_fop_t fop)
                 "COMPOUND",
                 "GETACTIVELK",
                 "SETACTIVELK",
+                "DISCOVER",
                 "MAXVALUE"};
         if (fop <= GF_FOP_MAXVALUE)
                 return str_map[fop];
