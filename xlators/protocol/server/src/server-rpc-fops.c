@@ -6666,7 +6666,8 @@ server3_3_lookup (rpcsvc_request_t *req)
                                   args.pargfid);
                 state->resolve.bname = gf_strdup (args.bname);
         } else {
-                memcpy (state->resolve.gfid, args.gfid, 16);
+                set_resolve_gfid (frame->root->client,
+                                  state->resolve.gfid, args.gfid);
                 discover = _gf_true;
         }
 

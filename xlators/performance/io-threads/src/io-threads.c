@@ -368,6 +368,14 @@ iot_lookup (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
         return 0;
 }
 
+int
+iot_discover (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
+{
+        IOT_FOP (discover, frame, this, loc, xdata);
+        return 0;
+}
+
+
 
 int
 iot_setattr (call_frame_t *frame, xlator_t *this, loc_t *loc,
@@ -1168,6 +1176,7 @@ struct xlator_fops fops = {
         .lease       = iot_lease,
         .getactivelk = iot_getactivelk,
         .setactivelk = iot_setactivelk,
+        .discover    = iot_discover,
 };
 
 struct xlator_cbks cbks = {
