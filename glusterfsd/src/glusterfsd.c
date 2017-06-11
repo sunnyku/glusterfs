@@ -2429,6 +2429,11 @@ main (int argc, char *argv[])
 
 	gf_check_and_set_mem_acct (argc, argv);
 
+#if MEMORY_ACCOUNTING_STATS
+        /* This should technically be done before any memory allocation */
+        mem_accounting_stats_init();
+#endif
+
 	ctx = glusterfs_ctx_new ();
         if (!ctx) {
                 gf_msg ("glusterfs", GF_LOG_CRITICAL, 0, glusterfsd_msg_29);

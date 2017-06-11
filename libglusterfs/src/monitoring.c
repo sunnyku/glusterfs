@@ -14,6 +14,52 @@
 
 #include <stdlib.h>
 
+void
+dump_memory_accounting (int fd)
+{
+#if MEMORY_ACCOUNTING_STATS
+        char     msg[256] = {0,};
+        int      i        = 0;
+        uint64_t count    = 0;
+
+        uint64_t tcalloc = GF_ATOMIC_GET (gf_memory_stat_counts.total_calloc);
+        uint64_t tmalloc = GF_ATOMIC_GET (gf_memory_stat_counts.total_malloc);
+        uint64_t tfree   = GF_ATOMIC_GET (gf_memory_stat_counts.total_free);
+
+        memset (msg, 0, sizeof (msg));
+        snprintf (msg, sizeof(msg), "memory.total.calloc %lu\n", tcalloc);
+        sys_write (fd, msg, strlen (msg));
+
+        memset (msg, 0, sizeof (msg));
+        snprintf (msg, sizeof(msg), "memory.total.malloc %lu\n", tmalloc);
+        sys_write (fd, msg, strlen (msg));
+
+        memset (msg, 0, sizeof (msg));
+        snprintf (msg, sizeof(msg), "memory.total.realloc %lu\n",
+                  GF_ATOMIC_GET (gf_memory_stat_counts.total_realloc));
+        sys_write (fd, msg, strlen (msg));
+
+        memset (msg, 0, sizeof (msg));
+        snprintf (msg, sizeof(msg), "memory.total.free %lu\n", tfree);
+        sys_write (fd, msg, strlen (msg));
+
+        memset (msg, 0, sizeof (msg));
+        snprintf (msg, sizeof(msg), "memory.total.in-use %lu\n",
+                  ((tcalloc + tmalloc) - tfree));
+        sys_write (fd, msg, strlen (msg));
+
+        for (i = 0; i < GF_BLK_MAX_VALUE; i++) {
+                count = GF_ATOMIC_GET (gf_memory_stat_counts.blk_size[i]);
+                memset (msg, 0, sizeof (msg));
+                snprintf (msg, sizeof(msg), "memory.total.blk_size[%d] %lu\n",
+                          i, count);
+                sys_write (fd, msg, strlen (msg));
+        }
+
+        fsync (fd);
+#endif
+}
+
 
 static void
 update_latency_and_count (xlator_t *xl, int index, int fd)
@@ -60,6 +106,9 @@ dump_metrics (glusterfs_ctx_t *ctx, int fd)
         /* Let every file have information on which process dumped info */
         sys_write (fd, ctx->cmdlinestr, strlen (ctx->cmdlinestr));
         sys_write (fd, "\n", 1);
+
+        /* Dump memory accounting */
+        dump_memory_accounting (fd);
 
         while (xl) {
                 for (fop = 0; fop < GF_FOP_MAXVALUE; fop++) {
