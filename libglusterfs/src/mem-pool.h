@@ -58,8 +58,6 @@ struct gf_memory_stats {
 };
 typedef struct gf_memory_stats gf_memory_stats_t;
 
-void dump_memory_accounting (int fd);
-
 void mem_accounting_stats_init ();
 
 void update_blk_count (size_t size);

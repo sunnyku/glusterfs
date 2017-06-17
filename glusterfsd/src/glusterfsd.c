@@ -1516,6 +1516,7 @@ glusterfs_ctx_defaults_init (glusterfs_ctx_t *ctx)
 
         INIT_LIST_HEAD (&ctx->pool->all_frames);
         LOCK_INIT (&ctx->pool->lock);
+        GF_ATOMIC_INIT (ctx->pool->total_count, 0);
 
         /* frame_mem_pool size 112 * 4k */
         ctx->pool->frame_mem_pool = mem_pool_new (call_frame_t, 4096);
@@ -2131,9 +2132,9 @@ glusterfs_sigwaiter (void *arg)
                         gf_proc_dump_info (sig, glusterfsd_ctx);
                         break;
                 case SIGUSR2:
-                        gf_latency_toggle (sig, glusterfsd_ctx);
+                        //gf_latency_toggle (sig, glusterfsd_ctx);
                         /* TODO: Commentout below code to test the feature */
-                        /* gf_monitor_metrics (sig, glusterfsd_ctx); */
+                        gf_monitor_metrics (sig, glusterfsd_ctx);
                         break;
                 default:
 

@@ -14,11 +14,33 @@
 
 #include <stdlib.h>
 
-void
-dump_memory_accounting (int fd)
+static void
+dump_mem_acct_details(xlator_t *xl, int fd)
+{
+        struct mem_acct_rec *mem_rec;
+        int i = 0;
+
+        if (!xl || !xl->mem_acct)
+                return;
+        dprintf (fd, "%s.%s.total.num_types %d\n", xl->type, xl->name,
+                 xl->mem_acct->num_types);
+        dprintf (fd, "type, in-use-size, in-use-units, max-size, "      \
+                 "max-units, total-allocs\n");
+        for (i = 0; i < xl->mem_acct->num_types; i++) {
+                mem_rec = &xl->mem_acct->rec[i];
+                if (mem_rec->num_allocs == 0)
+                        continue;
+                dprintf (fd, "%s, %"GF_PRI_SIZET", %u, %"GF_PRI_SIZET", %u, %u\n",
+                         mem_rec->typestr, mem_rec->size, mem_rec->num_allocs,
+                         mem_rec->max_size, mem_rec->max_num_allocs,
+                         mem_rec->total_allocs);
+        }
+}
+
+static void
+dump_memory_accounting (xlator_t *xl, int fd)
 {
 #if MEMORY_ACCOUNTING_STATS
-        char     msg[256] = {0,};
         int      i        = 0;
         uint64_t count    = 0;
 
@@ -26,94 +48,88 @@ dump_memory_accounting (int fd)
         uint64_t tmalloc = GF_ATOMIC_GET (gf_memory_stat_counts.total_malloc);
         uint64_t tfree   = GF_ATOMIC_GET (gf_memory_stat_counts.total_free);
 
-        memset (msg, 0, sizeof (msg));
-        snprintf (msg, sizeof(msg), "memory.total.calloc %lu\n", tcalloc);
-        sys_write (fd, msg, strlen (msg));
-
-        memset (msg, 0, sizeof (msg));
-        snprintf (msg, sizeof(msg), "memory.total.malloc %lu\n", tmalloc);
-        sys_write (fd, msg, strlen (msg));
-
-        memset (msg, 0, sizeof (msg));
-        snprintf (msg, sizeof(msg), "memory.total.realloc %lu\n",
-                  GF_ATOMIC_GET (gf_memory_stat_counts.total_realloc));
-        sys_write (fd, msg, strlen (msg));
-
-        memset (msg, 0, sizeof (msg));
-        snprintf (msg, sizeof(msg), "memory.total.free %lu\n", tfree);
-        sys_write (fd, msg, strlen (msg));
-
-        memset (msg, 0, sizeof (msg));
-        snprintf (msg, sizeof(msg), "memory.total.in-use %lu\n",
-                  ((tcalloc + tmalloc) - tfree));
-        sys_write (fd, msg, strlen (msg));
+        dprintf (fd, "memory.total.calloc %lu\n", tcalloc);
+        dprintf (fd, "memory.total.malloc %lu\n", tmalloc);
+        dprintf (fd, "memory.total.realloc %lu\n",
+                 GF_ATOMIC_GET (gf_memory_stat_counts.total_realloc));
+        dprintf (fd, "memory.total.free %lu\n", tfree);
+        dprintf (fd, "memory.total.in-use %lu\n", ((tcalloc + tmalloc) - tfree));
 
         for (i = 0; i < GF_BLK_MAX_VALUE; i++) {
                 count = GF_ATOMIC_GET (gf_memory_stat_counts.blk_size[i]);
-                memset (msg, 0, sizeof (msg));
-                snprintf (msg, sizeof(msg), "memory.total.blk_size[%d] %lu\n",
-                          i, count);
-                sys_write (fd, msg, strlen (msg));
+                dprintf (fd, "memory.total.blk_size[%d] %lu\n", i, count);
         }
 
-        fsync (fd);
+        dprintf (fd, "----\n");
 #endif
+
+        /* This is not a metric to be watched in admin guide,
+           but keeping it here till we resolve all leak-issues
+           would be great */
+        while (xl) {
+                dump_mem_acct_details (xl, fd);
+                xl = xl->next;
+        }
 }
 
 
 static void
-update_latency_and_count (xlator_t *xl, int index, int fd)
+dump_latency_and_count (xlator_t *xl, int fd)
 {
+        int32_t  index = 0;
         uint64_t fop;
         uint64_t cbk;
-        char msg[1024] = {0,};
         glusterfs_graph_t *graph = NULL;
 
         graph = xl->graph;
 
-        fop = GF_ATOMIC_GET (xl->metrics[index].fop);
-        cbk = GF_ATOMIC_GET (xl->metrics[index].cbk);
-        if (fop) {
-                snprintf (msg, sizeof(msg), "%s.%d.%s.count %lu\n",
-                          xl->name, (graph) ? graph->id:0, gf_fop_list[index], fop);
-                sys_write (fd, msg, strlen (msg));
+        for (index = 0; index < GF_FOP_MAXVALUE; index++) {
+                fop = GF_ATOMIC_GET (xl->metrics[index].fop);
+                cbk = GF_ATOMIC_GET (xl->metrics[index].cbk);
+                if (fop) {
+                        dprintf (fd, "%s.%d.%s.count %lu\n", xl->name,
+                                 (graph) ? graph->id : 0, gf_fop_list[index], fop);
+                }
+                if (cbk) {
+                        dprintf (fd, "%s.%d.%s.fail_count %lu\n", xl->name,
+                                 (graph) ? graph->id : 0, gf_fop_list[index], cbk);
+                }
+                if (xl->latencies[index].mean != 0.0) {
+                        dprintf (fd, "%s.%d.%s.latency %lf\n", xl->name,
+                                 (graph) ? graph->id : 0, gf_fop_list[index],
+                                 xl->latencies[index].mean);
+                }
         }
-        if (cbk) {
-                memset (msg, 0, sizeof (msg));
-                snprintf (msg, sizeof(msg),
-                          "%s.%d.%s.fail_count %lu\n",
-                          xl->name, (graph) ? graph->id:0, gf_fop_list[index],
-                          cbk);
-                sys_write (fd, msg, strlen (msg));
-        }
-        if (xl->latencies[index].mean != 0.0) {
-                memset (msg, 0, sizeof (msg));
-                snprintf (msg, sizeof(msg), "%s.%d.%s.latency %lf\n",
-                          xl->name, (graph) ? graph->id:0, gf_fop_list[index],
-                          xl->latencies[index].mean);
-                sys_write (fd, msg, strlen (msg));
-        }
+}
+
+static void
+dump_call_stack_details (glusterfs_ctx_t *ctx, int fd)
+{
+        dprintf (fd, "total.stack_count %lu\n",
+                 GF_ATOMIC_GET (ctx->pool->total_count));
+        dprintf (fd, "in-flight.stack_count %lu\n",
+                 ctx->pool->cnt);
 }
 
 static void
 dump_metrics (glusterfs_ctx_t *ctx, int fd)
 {
         xlator_t *xl = NULL;
-        int fop = 0;
 
         xl = ctx->active->top;
 
         /* Let every file have information on which process dumped info */
-        sys_write (fd, ctx->cmdlinestr, strlen (ctx->cmdlinestr));
-        sys_write (fd, "\n", 1);
+        dprintf (fd, "%s\n", ctx->cmdlinestr);
 
         /* Dump memory accounting */
-        dump_memory_accounting (fd);
+        dump_memory_accounting (xl, fd);
+        dprintf (fd, "-----\n");
+
+        dump_call_stack_details (ctx, fd);
+        dprintf (fd, "-----\n");
 
         while (xl) {
-                for (fop = 0; fop < GF_FOP_MAXVALUE; fop++) {
-                        update_latency_and_count (xl, fop, fd);
-                }
+                dump_latency_and_count (xl, fd);
                 xl = xl->next;
         }
 
@@ -139,6 +155,7 @@ gf_monitor_metrics (int sig, glusterfs_ctx_t *ctx)
 
         dump_metrics (ctx, fd);
 
+        sys_fsync (fd);
         sys_close (fd);
 
         return;

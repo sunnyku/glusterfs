@@ -57,6 +57,7 @@ struct call_pool {
                 } all_stacks;
         };
         int64_t                     cnt;
+        gf_atomic_t                 total_count;
         gf_lock_t                   lock;
         struct mem_pool             *frame_mem_pool;
         struct mem_pool             *stack_mem_pool;
@@ -310,8 +311,8 @@ STACK_RESET (call_stack_t *stack)
                               frame->root, old_THIS->name,              \
                               THIS->name);                              \
                 timespec_now (&_new->begin);                            \
-                set_fop_index(frame->op, _new->this, fn);               \
-                GF_ATOMIC_INC (obj->metrics[frame->op].fop);            \
+                set_fop_index(_new->op, _new->this, fn);                \
+                GF_ATOMIC_INC (obj->metrics[_new->op].fop);             \
                 fn (_new, obj, params);                                 \
                 THIS = old_THIS;                                        \
         } while (0)
@@ -468,6 +469,7 @@ copy_frame (call_frame_t *frame)
                 newstack->pool->cnt++;
         }
         UNLOCK (&oldstack->pool->lock);
+        GF_ATOMIC_INC (newstack->pool->total_count);
 
         return newframe;
 }
