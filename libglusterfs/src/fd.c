@@ -14,6 +14,7 @@
 #include "dict.h"
 #include "statedump.h"
 #include "libglusterfs-messages.h"
+#include "compat-errno.h"
 
 
 static int
@@ -475,9 +476,12 @@ __fd_unref (fd_t *fd)
 static void
 fd_destroy (fd_t *fd, gf_boolean_t bound)
 {
+        int index = 0;
         xlator_t    *xl = NULL;
-        int          i = 0;
         xlator_t    *old_THIS = NULL;
+        struct _fd_ctx_list *fctx = NULL;
+        struct _fd_ctx_list *tmp = NULL;
+        gf_boolean_t is_dir = _gf_false;
 
         if (fd == NULL){
                 gf_msg_callingfn ("xlator", GF_LOG_ERROR,  EINVAL,
@@ -491,36 +495,40 @@ fd_destroy (fd_t *fd, gf_boolean_t bound)
                                   "fd->inode is NULL");
                 goto out;
         }
-        if (!fd->_ctx)
-                goto out;
 
-        if (IA_ISDIR (fd->inode->ia_type)) {
-                for (i = 0; i <  fd->xl_count; i++) {
-                        if (fd->_ctx[i].key) {
-                                xl = fd->_ctx[i].xl_key;
-                                old_THIS = THIS;
-                                THIS = xl;
-                                if (xl->cbks->releasedir)
-                                        xl->cbks->releasedir (xl, fd);
-                                THIS = old_THIS;
-                        }
-                }
-        } else {
-                for (i = 0; i < fd->xl_count; i++) {
-                        if (fd->_ctx[i].key) {
-                                xl = fd->_ctx[i].xl_key;
-                                old_THIS = THIS;
-                                THIS = xl;
-                                if (xl->cbks->release)
-                                        xl->cbks->release (xl, fd);
-                                THIS = old_THIS;
-                        }
-                }
+        if (list_empty(&fd->ctx_list)) {
+                gf_msg (THIS->name, GF_LOG_DEBUG, 0, LG_MSG_INVALID_ARG,
+                        "_ctx not found");
+                goto noctx;
         }
 
+        if (IA_ISDIR (fd->inode->ia_type))
+                is_dir = _gf_true;
+
+        list_for_each_entry_safe (fctx, tmp, &fd->ctx_list, fd_list) {
+                for (index = 0; index < fctx->graph->xl_count; index++) {
+                        if (fctx->_ctx[index].xl_key) {
+                                xl = fctx->_ctx[index].xl_key;
+                                old_THIS = THIS;
+                                THIS = xl;
+                                if (is_dir) {
+                                        if (xl->cbks->releasedir)
+                                                xl->cbks->releasedir (xl, fd);
+                                } else {
+                                        if (xl->cbks->release)
+                                                xl->cbks->release (xl, fd);
+                                }
+                                THIS = old_THIS;
+                        }
+                }
+                list_del_init (&fctx->fd_list);
+                GF_FREE (fctx->_ctx);
+                GF_FREE (fctx);
+        }
+
+noctx:
         LOCK_DESTROY (&fd->lock);
 
-        GF_FREE (fd->_ctx);
         if (bound) {
                 /*Decrease the count only after close happens on file*/
                 LOCK (&fd->inode->lock);
@@ -617,27 +625,19 @@ __fd_create (inode_t *inode, uint64_t pid)
         if (!fd)
                 goto out;
 
-        fd->xl_count = inode->table->xl->graph->xl_count + 1;
-
-        fd->_ctx = GF_CALLOC (1, (sizeof (struct _fd_ctx) * fd->xl_count),
-                              gf_common_mt_fd_ctx);
-        if (!fd->_ctx)
-                goto free_fd;
-
         fd->lk_ctx = fd_lk_ctx_create ();
         if (!fd->lk_ctx)
-                goto free_fd_ctx;
+                goto free_fd;
 
         fd->inode = inode_ref (inode);
         fd->pid = pid;
         INIT_LIST_HEAD (&fd->inode_list);
+        INIT_LIST_HEAD (&fd->ctx_list);
 
         LOCK_INIT (&fd->lock);
 out:
         return fd;
 
-free_fd_ctx:
-        GF_FREE (fd->_ctx);
 free_fd:
         mem_put (fd);
 
@@ -864,62 +864,88 @@ fd_list_empty (inode_t *inode)
         return empty;
 }
 
+static struct _fd_ctx_list *
+__fd_ctx_create (fd_t *fd, glusterfs_graph_t *graph)
+{
+        struct _fd_ctx_list *fctx = NULL;
+
+        fctx = GF_CALLOC (1, sizeof (struct _fd_ctx_list),
+                          gf_common_mt_fd_ctx_list);
+        if (!fctx)
+                goto out;
+
+        fctx->_ctx = GF_CALLOC (sizeof (struct _fd_ctx),
+                                (graph->xl_count),
+                                gf_common_mt_fd_ctx);
+        if (!fctx->_ctx) {
+                GF_FREE (fctx);
+                fctx = NULL;
+                goto out;
+        }
+
+        INIT_LIST_HEAD (&fctx->fd_list);
+        fctx->graph = graph;
+
+        list_add (&fctx->fd_list, &fd->ctx_list);
+out:
+        return fctx;
+
+}
+
 
 int
 __fd_ctx_set (fd_t *fd, xlator_t *xlator, uint64_t value)
 {
-        int             index   = 0, new_xl_count = 0;
+        int             index   = 0;
         int             ret     = 0;
         int             set_idx = -1;
-        void           *begin   = NULL;
-        size_t          diff    = 0;
-        struct _fd_ctx *tmp     = NULL;
+        struct _fd_ctx_list *fctx = NULL;
+        struct _fd_ctx_list *current_ctx = NULL;
 
 	if (!fd || !xlator)
 		return -1;
 
-        for (index = 0; index < fd->xl_count; index++) {
-                if (!fd->_ctx[index].key) {
+        if (!xlator->graph) {
+                /* global ctx */
+                fd->global_ctx.xl_key = xlator;
+                if (value)
+                        fd->global_ctx.value1 = value;
+                goto out;
+        }
+
+        /* do search for the correct graph before continuing */
+        list_for_each_entry (fctx, &fd->ctx_list, fd_list) {
+                if (xlator->graph == fctx->graph) {
+                        current_ctx = fctx;
+                        break;
+                }
+        }
+        if (!current_ctx) {
+                current_ctx = __fd_ctx_create (fd, xlator->graph);
+                if (!current_ctx)
+                        return -1;
+        }
+
+        for (index = 0; index < current_ctx->graph->xl_count; index++) {
+                if (!current_ctx->_ctx[index].key) {
                         if (set_idx == -1)
                                 set_idx = index;
                         /* dont break, to check if key already exists
                            further on */
                 }
-                if (fd->_ctx[index].xl_key == xlator) {
+                if (current_ctx->_ctx[index].xl_key == xlator) {
                         set_idx = index;
                         break;
                 }
         }
 
         if (set_idx == -1) {
-                set_idx = fd->xl_count;
-
-                new_xl_count = fd->xl_count + xlator->graph->xl_count;
-
-                tmp = GF_REALLOC (fd->_ctx,
-                                  (sizeof (struct _fd_ctx)
-                                   * new_xl_count));
-                if (tmp == NULL) {
-                        ret = -1;
-                        goto out;
-                }
-
-                fd->_ctx = tmp;
-
-                begin = fd->_ctx;
-                begin += (fd->xl_count * sizeof (struct _fd_ctx));
-
-                diff = (new_xl_count - fd->xl_count )
-                        * sizeof (struct _fd_ctx);
-
-                memset (begin, 0, diff);
-
-                fd->xl_count = new_xl_count;
+                ret = -1;
+                goto out;
         }
 
-        fd->_ctx[set_idx].xl_key = xlator;
-        fd->_ctx[set_idx].value1  = value;
-
+        current_ctx->_ctx[set_idx].xl_key = xlator;
+        current_ctx->_ctx[set_idx].value1 = value;
 out:
         return ret;
 }
@@ -950,23 +976,53 @@ int
 __fd_ctx_get (fd_t *fd, xlator_t *xlator, uint64_t *value)
 {
         int index = 0;
-        int ret = 0;
+        int ret = -1;
+        struct _fd_ctx_list *fctx = NULL;
 
         if (!fd || !xlator)
                 return -1;
 
-        for (index = 0; index < fd->xl_count; index++) {
-                if (fd->_ctx[index].xl_key == xlator)
-                        break;
-        }
-
-        if (index == fd->xl_count) {
-                ret = -1;
+        if (!xlator->graph &&
+            (xlator == fd->global_ctx.xl_key)) {
+                /* global ctx */
+                if (fd->global_ctx.value1) {
+                        ret = 0;
+                        if (value)
+                                *value = fd->global_ctx.value1;
+                }
                 goto out;
         }
 
-        if (value)
-                *value = fd->_ctx[index].value1;
+        /* request from top level */
+        if (!xlator->graph)
+                goto out;
+
+        /* do search for the correct graph before continuing */
+        list_for_each_entry (fctx, &fd->ctx_list, fd_list) {
+                if (xlator->graph == fctx->graph) {
+                        break;
+                }
+        }
+
+        /* if no ctx is set by this xlator, return error */
+        if (fctx->graph != xlator->graph) {
+                errno = ENODATA;
+                goto out;
+        }
+        for (index = 0; index < fctx->graph->xl_count; index++) {
+                if (fctx->_ctx[index].xl_key == xlator)
+                        break;
+        }
+
+        if (index == fctx->graph->xl_count) {
+                goto out;
+        }
+
+        if (fctx->_ctx[index].value1) {
+                if (value)
+                        *value = fctx->_ctx[index].value1;
+                ret = 0;
+        }
 
 out:
         return ret;
@@ -995,26 +1051,56 @@ int
 __fd_ctx_del (fd_t *fd, xlator_t *xlator, uint64_t *value)
 {
         int index = 0;
-        int ret = 0;
+        int ret = -1;
+        struct _fd_ctx_list *fctx = NULL;
 
         if (!fd || !xlator)
                 return -1;
 
-        for (index = 0; index < fd->xl_count; index++) {
-                if (fd->_ctx[index].xl_key == xlator)
-                        break;
-        }
-
-        if (index == fd->xl_count) {
-                ret = -1;
+        if (!xlator->graph &&
+            (xlator == fd->global_ctx.xl_key)) {
+                /* global ctx */
+                if (fd->global_ctx.value1) {
+                        ret = 0;
+                        if (value)
+                                *value = fd->global_ctx.value1;
+                }
                 goto out;
         }
 
-        if (value)
-                *value = fd->_ctx[index].value1;
+        /* request from top level */
+        if (!xlator->graph)
+                goto out;
 
-        fd->_ctx[index].key   = 0;
-        fd->_ctx[index].value1 = 0;
+        /* do search for the correct graph before continuing */
+        list_for_each_entry (fctx, &fd->ctx_list, fd_list) {
+                if (xlator->graph == fctx->graph) {
+                        break;
+                }
+        }
+
+        /* if no ctx is set by this xlator, return error */
+        if (fctx->graph != xlator->graph) {
+                errno = ENODATA;
+                goto out;
+        }
+        for (index = 0; index < fctx->graph->xl_count; index++) {
+                if (fctx->_ctx[index].xl_key == xlator)
+                        break;
+        }
+
+        if (index == fctx->graph->xl_count) {
+                goto out;
+        }
+
+        if (fctx->_ctx[index].value1) {
+                if (value)
+                        *value = fctx->_ctx[index].value1;
+                ret = 0;
+        }
+
+        fctx->_ctx[index].key   = 0;
+        fctx->_ctx[index].value1 = 0;
 
 out:
         return ret;
@@ -1120,47 +1206,11 @@ out:
 void
 fd_ctx_dump (fd_t *fd, char *prefix)
 {
-        struct _fd_ctx *fd_ctx = NULL;
-        xlator_t       *xl     = NULL;
-        int    i               = 0;
-
-
-        if ((fd == NULL) || (fd->_ctx == NULL)) {
+        if (fd == NULL)
                 goto out;
-        }
 
-        LOCK (&fd->lock);
-        {
-                if (fd->_ctx != NULL) {
-                        fd_ctx = GF_CALLOC (fd->xl_count, sizeof (*fd_ctx),
-                                            gf_common_mt_fd_ctx);
-                        if (fd_ctx == NULL) {
-                                goto unlock;
-                        }
-
-                        for (i = 0; i < fd->xl_count; i++) {
-                                fd_ctx[i] = fd->_ctx[i];
-                        }
-                }
-        }
-unlock:
-        UNLOCK (&fd->lock);
-
-        if (fd_ctx == NULL) {
-                goto out;
-        }
-
-        for (i = 0; i < fd->xl_count; i++) {
-                if (fd_ctx[i].xl_key) {
-                        xl = (xlator_t *)(long)fd_ctx[i].xl_key;
-                        if (xl->dumpops && xl->dumpops->fdctx)
-                                xl->dumpops->fdctx (xl, fd);
-                }
-        }
-
+        /* need to dump fd-ctx */
 out:
-        GF_FREE (fd_ctx);
-
         return;
 }
 

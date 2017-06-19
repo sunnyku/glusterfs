@@ -28,10 +28,11 @@ graph_setup (struct glfs *fs, glusterfs_graph_t *graph)
 {
 	xlator_t      *new_subvol = NULL;
 	xlator_t      *old_subvol = NULL;
-	inode_table_t *itable = NULL;
 	int            ret = -1;
 
 	new_subvol = graph->top;
+
+        new_subvol->itable = fs->ctx->itable;
 
 	/* This is called in a bottom-up context, it should specifically
 	   NOT be glfs_lock()
@@ -45,17 +46,6 @@ graph_setup (struct glfs *fs, glusterfs_graph_t *graph)
 			/* Spurious CHILD_UP event on old graph */
 			ret = 0;
 			goto unlock;
-		}
-
-		if (!new_subvol->itable) {
-			itable = inode_table_new (131072, new_subvol);
-			if (!itable) {
-				errno = ENOMEM;
-				ret = -1;
-				goto unlock;
-			}
-
-			new_subvol->itable = itable;
 		}
 
 		old_subvol = fs->next_subvol;

@@ -841,10 +841,12 @@ server_setvolume (rpcsvc_request_t *req)
                                       conf->inode_lru_limit,
                                       client->bound_xl->name);
 
-                        /* TODO: what is this ? */
+                        /* lets not use ctx->itable (global) here,
+                           but use bound_xl->itable, because, it is possible
+                           here that there are more than one subvolume server-
+                           protocol is resolving to. */
                         client->bound_xl->itable =
-                                inode_table_new (conf->inode_lru_limit,
-                                                 client->bound_xl);
+                                inode_table_new (conf->inode_lru_limit);
                 }
         }
         UNLOCK (&conf->itable_lock);

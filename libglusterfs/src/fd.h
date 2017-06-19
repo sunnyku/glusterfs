@@ -37,6 +37,13 @@ struct _fd_ctx {
         };
 };
 
+struct _fd_ctx_list {
+	struct _fd_ctx     *_ctx;      /* per xlator context location */
+        glusterfs_graph_t  *graph;     /* pointer value of the graph fd
+                                          is bonded with  */
+        struct list_head    fd_list;
+};
+
 struct _fd {
         uint64_t          pid;
 	int32_t           flags;
@@ -45,12 +52,16 @@ struct _fd {
         struct _inode    *inode;
         gf_lock_t         lock; /* used ONLY for manipulating
                                    'struct _fd_ctx' array (_ctx).*/
-	struct _fd_ctx   *_ctx;
-        int               xl_count; /* Number of xl referred in this fd */
         struct fd_lk_ctx *lk_ctx;
         gf_boolean_t      anonymous; /* fd which does not have counterpart open
                                         fd on backend (server for client, posix
                                         for server). */
+
+        struct list_head  ctx_list;
+
+        /* ctx for graph independent xlators,
+           like fuse, gfapi, server-protocol */
+        struct _fd_ctx    global_ctx;
 };
 typedef struct _fd fd_t;
 

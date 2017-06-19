@@ -391,7 +391,7 @@ typedef struct {
 typedef struct {
         uint32_t  open_flags;
         char      migration_failed;
-        fd_t     *activefd;
+        xlator_t *subvol;
 } fuse_fd_ctx_t;
 
 typedef void (*fuse_resume_fn_t) (fuse_state_t *state);

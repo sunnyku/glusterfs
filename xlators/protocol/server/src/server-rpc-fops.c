@@ -6689,7 +6689,6 @@ server3_3_lookup (rpcsvc_request_t *req)
                 frame->root->op = GF_FOP_DISCOVER;
                 resolve_and_resume (frame, server_discover_resume);
         }
-        
 
         return ret;
 out:

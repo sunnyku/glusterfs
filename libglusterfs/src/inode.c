@@ -19,6 +19,7 @@
 #include <time.h>
 #include <assert.h>
 #include "libglusterfs-messages.h"
+#include "compat-errno.h"
 
 /* TODO:
    move latest accessed dentry to list_head of inode
@@ -310,6 +311,8 @@ __inode_ctx_free (inode_t *inode)
         int          index = 0;
         xlator_t    *xl = NULL;
         xlator_t    *old_THIS = NULL;
+        struct inode_ctx_list *ictx = NULL;
+        struct inode_ctx_list *tmp = NULL;
 
         if (!inode) {
                 gf_msg_callingfn (THIS->name, GF_LOG_WARNING, 0,
@@ -317,25 +320,27 @@ __inode_ctx_free (inode_t *inode)
                 return;
         }
 
-        if (!inode->_ctx) {
-                gf_msg (THIS->name, GF_LOG_WARNING, 0, LG_MSG_CTX_NULL,
+        if (list_empty (&inode->ctx_list)) {
+                gf_msg (THIS->name, GF_LOG_TRACE, 0, LG_MSG_CTX_NULL,
                         "_ctx not found");
                 goto noctx;
         }
 
-        for (index = 0; index < inode->table->xl->graph->xl_count; index++) {
-                if (inode->_ctx[index].value1 || inode->_ctx[index].value2) {
-                        xl = (xlator_t *)(long)inode->_ctx[index].xl_key;
-                        old_THIS = THIS;
-                        THIS = xl;
-                        if (xl->cbks->forget)
-                                xl->cbks->forget (xl, inode);
-                        THIS = old_THIS;
+        list_for_each_entry_safe (ictx, tmp, &inode->ctx_list, inode_list) {
+                for (index = 0; index < ictx->graph->xl_count; index++) {
+                        if (ictx->_ctx[index].xl_key) {
+                                xl = ictx->_ctx[index].xl_key;
+                                old_THIS = THIS;
+                                THIS = xl;
+                                if (xl->cbks->forget)
+                                        xl->cbks->forget (xl, inode);
+                                THIS = old_THIS;
+                        }
                 }
+                list_del_init (&ictx->inode_list);
+                GF_FREE (ictx->_ctx);
+                GF_FREE (ictx);
         }
-
-        GF_FREE (inode->_ctx);
-        inode->_ctx = NULL;
 
 noctx:
         return;
@@ -363,6 +368,7 @@ inode_ctx_merge (fd_t *fd, inode_t *inode, inode_t *linked_inode)
         int       index    = 0;
         xlator_t *xl       = NULL;
         xlator_t *old_THIS = NULL;
+        struct inode_ctx_list *ictx = NULL;
 
         if (!fd || !inode || !linked_inode) {
                 gf_msg_callingfn (THIS->name, GF_LOG_WARNING, EINVAL,
@@ -370,16 +376,22 @@ inode_ctx_merge (fd_t *fd, inode_t *inode, inode_t *linked_inode)
                 return;
         }
 
-        if (!inode->_ctx || !linked_inode->_ctx) {
-                gf_msg_callingfn (THIS->name, GF_LOG_WARNING, EINVAL,
-                                  LG_MSG_INVALID_ARG,
-                                  "invalid inode context");
+
+        /* Get the 'correct' graph before continuing */
+        list_for_each_entry (ictx, &inode->ctx_list, inode_list) {
+                if (THIS->graph == ictx->graph)
+                        break;
+        }
+
+        if (ictx->graph != THIS->graph) {
+                /* no ctx is set by the xlator, return error */
+                errno = ENODATA;
                 return;
         }
 
-        for (; index < inode->table->ctxcount; index++) {
-                if (inode->_ctx[index].xl_key) {
-                        xl = (xlator_t *)(long) inode->_ctx[index].xl_key;
+        for (; index < ictx->graph->xl_count; index++) {
+                if (ictx->_ctx[index].xl_key) {
+                        xl = (xlator_t *)(long) ictx->_ctx[index].xl_key;
 
                         old_THIS = THIS;
                         THIS = xl;
@@ -448,16 +460,16 @@ __inode_retire (inode_t *inode)
 
 
 static int
-__inode_get_xl_index (inode_t *inode, xlator_t *xlator)
+__inode_get_xl_index (struct _inode_ctx *ctx, xlator_t *xlator)
 {
         int set_idx = -1;
 
-        if ((inode->_ctx[xlator->xl_id].xl_key != NULL) &&
-            (inode->_ctx[xlator->xl_id].xl_key != xlator))
+        if ((ctx[xlator->xl_id].xl_key != NULL) &&
+            (ctx[xlator->xl_id].xl_key != xlator))
                 goto out;
 
         set_idx = xlator->xl_id;
-        inode->_ctx[set_idx].xl_key = xlator;
+        ctx[set_idx].xl_key = xlator;
 
 out:
         return set_idx;
@@ -467,13 +479,8 @@ out:
 static inode_t *
 __inode_unref (inode_t *inode)
 {
-        int       index = 0;
-        xlator_t *this  = NULL;
-
         if (!inode)
                 return NULL;
-
-        this = THIS;
 
         /*
          * Root inode should always be in active list of inode table. So unrefs
@@ -486,11 +493,18 @@ __inode_unref (inode_t *inode)
 
         --inode->ref;
 
-        index = __inode_get_xl_index (inode, this);
+        /* TODO: check why this is required
+        int       index = 0;
+        xlator_t *this  = NULL;
+
+        this = THIS;
+
+        index = __inode_get_xl_index (current_ctx->_ctx, this);
         if (index >= 0) {
                 inode->_ctx[index].xl_key = this;
                 inode->_ctx[index].ref--;
         }
+        */
 
         if (!inode->ref) {
                 inode->table->active_size--;
@@ -508,13 +522,8 @@ __inode_unref (inode_t *inode)
 static inode_t *
 __inode_ref (inode_t *inode)
 {
-        int       index = 0;
-        xlator_t *this  = NULL;
-
         if (!inode)
                 return NULL;
-
-        this = THIS;
 
         if (!inode->ref) {
                 inode->table->lru_size--;
@@ -534,11 +543,18 @@ __inode_ref (inode_t *inode)
 
         inode->ref++;
 
-        index = __inode_get_xl_index (inode, this);
+        /* TODO: check why this is required * /
+        int       index = 0;
+        xlator_t *this  = NULL;
+
+        this = THIS;
+
+        index = __inode_get_xl_index (current_ctx->_ctx, this);
         if (index >= 0) {
                 inode->_ctx[index].xl_key = this;
                 inode->_ctx[index].ref++;
         }
+        */
 
         return inode;
 }
@@ -649,16 +665,7 @@ __inode_create (inode_table_t *table)
         INIT_LIST_HEAD (&newi->list);
         INIT_LIST_HEAD (&newi->hash);
         INIT_LIST_HEAD (&newi->dentry_list);
-
-        newi->_ctx = GF_CALLOC (1,
-                                (sizeof (struct _inode_ctx) * table->ctxcount),
-                                gf_common_mt_inode_ctx);
-        if (newi->_ctx == NULL) {
-                LOCK_DESTROY (&newi->lock);
-                mem_put (newi);
-                newi = NULL;
-                goto out;
-        }
+        INIT_LIST_HEAD (&newi->ctx_list);
 
         list_add (&newi->list, &table->lru);
         table->lru_size++;
@@ -976,29 +983,6 @@ __inode_link (inode_t *inode, inode_t *parent, const char *name,
                 return NULL;
         }
 
-        if (parent) {
-                /* We should prevent inode linking between different
-                   inode tables. This can cause errors which is very
-                   hard to catch/debug. */
-                if (inode->table != parent->table) {
-                        errno = EINVAL;
-                        GF_ASSERT (!"link attempted b/w inodes of diff table");
-                }
-
-                if (parent->ia_type != IA_IFDIR) {
-                        errno = EINVAL;
-                        GF_ASSERT (!"link attempted on non-directory parent");
-                        return NULL;
-                }
-
-                if (!name || strlen (name) == 0) {
-                        errno = EINVAL;
-                        GF_ASSERT (!"link attempted with no basename on "
-                                    "parent");
-                        return NULL;
-                }
-        }
-
         link_inode = inode;
 
         if (!__is_inode_hashed (inode)) {
@@ -1018,7 +1002,7 @@ __inode_link (inode_t *inode, inode_t *parent, const char *name,
                         link_inode = old_inode;
                 } else {
                         gf_uuid_copy (inode->gfid, iatt->ia_gfid);
-                        inode->ia_type    = iatt->ia_type;
+                        inode->ia_type = iatt->ia_type;
                         __inode_hash (inode);
                 }
         } else {
@@ -1051,24 +1035,34 @@ __inode_link (inode_t *inode, inode_t *parent, const char *name,
                 if (!old_dentry || old_dentry->inode != link_inode) {
                         dentry = __dentry_create (link_inode, parent, name);
                         if (!dentry) {
+                                char uuid_str[50] = {0,};
+                                char uuid_str1[50] = {0,};
                                 gf_msg_callingfn (THIS->name, GF_LOG_ERROR, 0,
                                                   LG_MSG_DENTRY_CREATE_FAILED,
                                                   "dentry create failed on "
                                                   "inode %s with parent %s",
-                                                  uuid_utoa (link_inode->gfid),
-                                                  uuid_utoa (parent->gfid));
+                                                  uuid_utoa_r (link_inode->gfid,
+                                                               uuid_str),
+                                                  uuid_utoa_r (parent->gfid,
+                                                               uuid_str1));
                                 errno = ENOMEM;
                                 return NULL;
                         }
                         if (old_inode && __is_dentry_cyclic (dentry)) {
+                                /* now, this should never happen */
+                                gf_msg (THIS->name, GF_LOG_ERROR, 0,
+                                        LG_MSG_DENTRY_CREATE_FAILED,
+                                        "possible cyclic entry creation %s/%s",
+                                        uuid_utoa (parent->gfid), name);
                                 errno = ELOOP;
                                 __dentry_unset (dentry);
                                 return NULL;
                         }
                         __dentry_hash (dentry);
 
-                        if (old_dentry)
+                        if (old_dentry) {
                                 __dentry_unset (old_dentry);
+                        }
                 }
         }
 
@@ -1189,6 +1183,7 @@ inode_invalidate(inode_t *inode)
 	int ret = 0;
 	xlator_t *xl = NULL;
 	xlator_t *old_THIS = NULL;
+        struct inode_ctx_list *ictx = NULL;
 
 	if (!inode) {
 		gf_msg_callingfn(THIS->name, GF_LOG_WARNING, 0,
@@ -1200,7 +1195,7 @@ inode_invalidate(inode_t *inode)
 	 * The master xlator is not in the graph but it can define an invalidate
 	 * handler.
 	 */
-	xl = inode->table->xl->ctx->master;
+	xl = (THIS)->ctx->master;
 	if (xl && xl->cbks->invalidate) {
 		old_THIS = THIS;
 		THIS = xl;
@@ -1210,19 +1205,21 @@ inode_invalidate(inode_t *inode)
 			return ret;
 	}
 
-	xl = inode->table->xl->graph->first;
-	while (xl) {
-		old_THIS = THIS;
-		THIS = xl;
-		if (xl->cbks->invalidate)
-			ret = xl->cbks->invalidate(xl, inode);
-		THIS = old_THIS;
+        list_for_each_entry (ictx, &inode->ctx_list, inode_list) {
+                xl = ictx->graph->first;
+                while (xl) {
+                        old_THIS = THIS;
+                        THIS = xl;
+                        if (xl->cbks->invalidate)
+                                ret = xl->cbks->invalidate(xl, inode);
+                        THIS = old_THIS;
 
-		if (ret)
-			break;
+                        if (ret)
+                                break;
 
-		xl = xl->next;
-	}
+                        xl = xl->next;
+                }
+        }
 
 	return ret;
 }
@@ -1281,6 +1278,8 @@ inode_rename (inode_table_t *table, inode_t *srcdir, const char *srcname,
               inode_t *dstdir, const char *dstname, inode_t *inode,
               struct iatt *iatt)
 {
+        inode_t *link_inode = NULL;
+
         if (!inode) {
                 gf_msg_callingfn (THIS->name, GF_LOG_WARNING, 0,
                                   LG_MSG_INODE_NOT_FOUND, "inode not found");
@@ -1291,8 +1290,8 @@ inode_rename (inode_table_t *table, inode_t *srcdir, const char *srcname,
 
         pthread_mutex_lock (&table->lock);
         {
-                __inode_link (inode, dstdir, dstname, iatt);
-                __inode_unlink (inode, srcdir, srcname);
+                link_inode = __inode_link (inode, dstdir, dstname, iatt);
+                __inode_unlink (link_inode, srcdir, srcname);
         }
         pthread_mutex_unlock (&table->lock);
 
@@ -1393,7 +1392,6 @@ inode_has_dentry (inode_t *inode)
 int
 __inode_path (inode_t *inode, const char *name, char **bufp)
 {
-        inode_table_t *table = NULL;
         inode_t       *itrav = NULL;
         dentry_t      *trav  = NULL;
         size_t         i     = 0, size = 0;
@@ -1408,8 +1406,6 @@ __inode_path (inode_t *inode, const char *name, char **bufp)
                 return -EINVAL;
         }
 
-        table = inode->table;
-
         itrav = inode;
         for (trav = __dentry_search_arbit (itrav); trav;
              trav = __dentry_search_arbit (itrav)) {
@@ -1417,7 +1413,7 @@ __inode_path (inode_t *inode, const char *name, char **bufp)
                 i ++; /* "/" */
                 i += strlen (trav->name);
                 if (i > PATH_MAX) {
-                        gf_msg (table->name, GF_LOG_CRITICAL, 0,
+                        gf_msg (THIS->name, GF_LOG_CRITICAL, 0,
                                 LG_MSG_DENTRY_CYCLIC_LOOP, "possible infinite "
                                 "loop detected, forcing break. name=(%s)",
                                 name);
@@ -1605,7 +1601,7 @@ __inode_table_init_root (inode_table_t *table)
 
 
 inode_table_t *
-inode_table_new (size_t lru_limit, xlator_t *xl)
+inode_table_new (size_t lru_limit)
 {
         inode_table_t *new = NULL;
         int            ret = -1;
@@ -1614,9 +1610,6 @@ inode_table_new (size_t lru_limit, xlator_t *xl)
         new = (void *)GF_CALLOC(1, sizeof (*new), gf_common_mt_inode_table_t);
         if (!new)
                 return NULL;
-
-        new->xl = xl;
-        new->ctxcount = xl->graph->xl_count + 1;
 
         new->lru_limit = lru_limit;
 
@@ -1668,11 +1661,7 @@ inode_table_new (size_t lru_limit, xlator_t *xl)
         INIT_LIST_HEAD (&new->lru);
         INIT_LIST_HEAD (&new->purge);
 
-        ret = gf_asprintf (&new->name, "%s/inode", xl->name);
-        if (-1 == ret) {
-                /* TODO: This should be ok to continue, check with avati */
-                ;
-        }
+        new->name = gf_strdup ("inode-table");
 
         __inode_table_init_root (new);
 
@@ -1716,17 +1705,13 @@ inode_table_ctx_free (inode_table_t *table)
         pthread_mutex_lock (&table->lock);
         {
                 list_for_each_entry_safe (del, tmp, &table->purge, list) {
-                        if (del->_ctx) {
-                                __inode_ctx_free (del);
-                                purge_count++;
-                        }
+                        __inode_ctx_free (del);
+                        purge_count++;
                 }
 
                 list_for_each_entry_safe (del, tmp, &table->lru, list) {
-                        if (del->_ctx) {
-                                __inode_ctx_free (del);
-                                lru_count++;
-                        }
+                        __inode_ctx_free (del);
+                        lru_count++;
                 }
 
                 /* should the contexts of active inodes be freed?
@@ -1736,10 +1721,8 @@ inode_table_ctx_free (inode_table_t *table)
                  * be used.
                  */
                 list_for_each_entry_safe (del, tmp, &table->active, list) {
-                        if (del->_ctx) {
-                                __inode_ctx_free (del);
-                                active_count++;
-                        }
+                        __inode_ctx_free (del);
+                        active_count++;
                 }
         }
         pthread_mutex_unlock (&table->lock);
@@ -1969,27 +1952,97 @@ inode_needs_lookup (inode_t *inode, xlator_t *this)
         return ret;
 }
 
+static struct inode_ctx_list *
+__inode_ctx_create (inode_t *inode, glusterfs_graph_t *graph)
+{
+        struct inode_ctx_list *ictx = NULL;
+
+        ictx = GF_CALLOC (1, sizeof (struct inode_ctx_list),
+                          gf_common_mt_inode_ctx_list);
+        if (!ictx)
+                goto out;
+
+        ictx->_ctx = GF_CALLOC (sizeof (struct _inode_ctx),
+                                (graph->xl_count),
+                                gf_common_mt_inode_ctx);
+        if (!ictx->_ctx) {
+                GF_FREE (ictx);
+                ictx = NULL;
+                goto out;
+        }
+
+        INIT_LIST_HEAD (&ictx->inode_list);
+        ictx->graph = graph;
+
+        list_add (&ictx->inode_list, &inode->ctx_list);
+out:
+        return ictx;
+
+}
+
+
 int
 __inode_ctx_set2 (inode_t *inode, xlator_t *xlator, uint64_t *value1_p,
                   uint64_t *value2_p)
 {
         int ret = 0;
         int set_idx = -1;
+        int index = 0;
+        struct inode_ctx_list *ictx = NULL;
+        struct inode_ctx_list *current_ctx = NULL;
 
-        if (!inode || !xlator || !inode->_ctx)
+        if (!inode || !xlator)
                 return -1;
 
-        set_idx = __inode_get_xl_index (inode, xlator);
+        if (!xlator->graph) {
+                /* global ctx */
+                inode->global_ctx.xl_key = xlator;
+                if (value1_p)
+                        inode->global_ctx.value1 = *value1_p;
+                if (value2_p)
+                        inode->global_ctx.value2 = *value2_p;
+                goto out;
+        }
+
+        /* do search for the correct graph before continuing */
+        list_for_each_entry (ictx, &inode->ctx_list, inode_list) {
+                if (xlator->graph == ictx->graph) {
+                        current_ctx = ictx;
+                        break;
+                }
+        }
+
+        if (!current_ctx) {
+                current_ctx = __inode_ctx_create (inode, xlator->graph);
+                if (!current_ctx)
+                        return -1;
+        }
+
+        for (index = 0; index < current_ctx->graph->xl_count; index++) {
+                if (!current_ctx->_ctx[index].xl_key) {
+                        if (set_idx == -1)
+                                set_idx = index;
+                        /* don't break, to check if key already exists
+                           further on */
+                }
+
+                if (current_ctx->_ctx[index].xl_key == xlator) {
+                        set_idx = index;
+                        break;
+                }
+        }
+
+        set_idx = __inode_get_xl_index (current_ctx->_ctx, xlator);
         if (set_idx == -1) {
                 ret = -1;
                 goto out;;
         }
 
-        inode->_ctx[set_idx].xl_key = xlator;
+        current_ctx->_ctx[set_idx].xl_key = xlator;
         if (value1_p)
-                inode->_ctx[set_idx].value1 = *value1_p;
+                current_ctx->_ctx[set_idx].value1 = *value1_p;
         if (value2_p)
-                inode->_ctx[set_idx].value2 = *value2_p;
+                current_ctx->_ctx[set_idx].value2 = *value2_p;
 out:
         return ret;
 }
@@ -2065,23 +2118,52 @@ __inode_ctx_get2 (inode_t *inode, xlator_t *xlator, uint64_t *value1,
 {
         int index = 0;
         int ret = -1;
+        struct inode_ctx_list *ictx = NULL;
 
-        if (!inode || !xlator || !inode->_ctx)
+        if (!inode || !xlator)
                 goto out;
+
+        if (!xlator->graph && (xlator == inode->global_ctx.xl_key)) {
+                /* global ctx */
+                if (inode->global_ctx.value1) {
+                        ret = 0;
+                        if (value1)
+                                *value1 = inode->global_ctx.value1;
+                }
+
+                if (inode->global_ctx.value2) {
+                        ret = 0;
+                        if (value2)
+                                *value2 = inode->global_ctx.value2;
+                }
+                goto out;
+        }
+
+        /* Get the 'correct' graph before continuing */
+        list_for_each_entry (ictx, &inode->ctx_list, inode_list) {
+                if (xlator->graph == ictx->graph)
+                        break;
+        }
+
+        if (ictx->graph != xlator->graph) {
+                /* no ctx is set by the xlator, return error */
+                errno = ENODATA;
+                goto out;
+        }
 
         index = xlator->xl_id;
-        if (inode->_ctx[index].xl_key != xlator)
+        if (ictx->_ctx[index].xl_key != xlator)
                 goto out;
 
-        if (inode->_ctx[index].value1) {
+        if (ictx->_ctx[index].value1) {
                 if (value1) {
-                        *value1 = inode->_ctx[index].value1;
+                        *value1 = ictx->_ctx[index].value1;
                         ret = 0;
                 }
         }
-        if (inode->_ctx[index].value2) {
+        if (ictx->_ctx[index].value2) {
                 if (value2) {
-                        *value2 = inode->_ctx[index].value2;
+                        *value2 = ictx->_ctx[index].value2;
                         ret = 0;
                 }
         }
@@ -2177,30 +2259,50 @@ inode_ctx_del2 (inode_t *inode, xlator_t *xlator, uint64_t *value1,
 {
         int index = 0;
         int ret = 0;
+        struct inode_ctx_list *ictx = NULL;
 
         if (!inode || !xlator)
                 return -1;
 
         LOCK (&inode->lock);
         {
-                if (!inode->_ctx)
+                if (!xlator->graph && (xlator == inode->global_ctx.xl_key)) {
+                        /* global ctx */
+                        if (value1)
+                                *value1 = inode->global_ctx.value1;
+                        if (value2)
+                                *value2 = inode->global_ctx.value2;
                         goto unlock;
+                }
 
-                index = xlator->xl_id;
-                if (inode->_ctx[index].xl_key != xlator) {
+                /* Get the 'correct' graph before continuing */
+                list_for_each_entry (ictx, &inode->ctx_list, inode_list) {
+                        if (xlator->graph == ictx->graph)
+                                break;
+                }
+
+                if (ictx->graph != xlator->graph) {
+                        /* no ctx is set by the xlator, return error */
+                        errno = ENODATA;
                         ret = -1;
                         goto unlock;
                 }
 
-                if (inode->_ctx[index].value1 && value1)
-                        *value1 = inode->_ctx[index].value1;
-                if (inode->_ctx[index].value2 && value2)
-                        *value2 = inode->_ctx[index].value2;
+                index = xlator->xl_id;
+                if (ictx->_ctx[index].xl_key != xlator) {
+                        ret = -1;
+                        goto unlock;
+                }
 
-                inode->_ctx[index].key    = 0;
-                inode->_ctx[index].xl_key = NULL;
-                inode->_ctx[index].value1 = 0;
-                inode->_ctx[index].value2 = 0;
+                if (ictx->_ctx[index].value1 && value1)
+                        *value1 = ictx->_ctx[index].value1;
+                if (ictx->_ctx[index].value2 && value2)
+                        *value2 = ictx->_ctx[index].value2;
+
+                ictx->_ctx[index].key    = 0;
+                ictx->_ctx[index].xl_key = NULL;
+                ictx->_ctx[index].value1 = 0;
+                ictx->_ctx[index].value2 = 0;
         }
 unlock:
         UNLOCK (&inode->lock);
@@ -2221,25 +2323,52 @@ __inode_ctx_reset2 (inode_t *inode, xlator_t *xlator, uint64_t *value1,
 {
         int index = 0;
         int ret = 0;
+        struct inode_ctx_list *ictx = NULL;
 
         if (!inode || !xlator)
                 return -1;
 
         LOCK (&inode->lock);
         {
-                index = xlator->xl_id;
-                if (inode->_ctx[index].xl_key != xlator) {
+                if (!xlator->graph && (xlator == inode->global_ctx.xl_key)) {
+                        /* global ctx */
+                        if (value1) {
+                                *value1 = inode->global_ctx.value1;
+                                inode->global_ctx.value1 = 0;
+                        }
+                        if (value2) {
+                                *value2 = inode->global_ctx.value2;
+                                inode->global_ctx.value2 = 0;
+                        }
+                        goto unlock;
+                }
+
+                /* Get the 'correct' graph before continuing */
+                list_for_each_entry (ictx, &inode->ctx_list, inode_list) {
+                        if (xlator->graph == ictx->graph)
+                                break;
+                }
+
+                if (ictx->graph != xlator->graph) {
+                        /* no ctx is set by the xlator, return error */
+                        errno = ENODATA;
                         ret = -1;
                         goto unlock;
                 }
 
-                if (inode->_ctx[index].value1 && value1) {
-                        *value1 = inode->_ctx[index].value1;
-                        inode->_ctx[index].value1 = 0;
+                index = xlator->xl_id;
+                if (ictx->_ctx[index].xl_key != xlator) {
+                        ret = -1;
+                        goto unlock;
                 }
-                if (inode->_ctx[index].value2 && value2) {
-                        *value2 = inode->_ctx[index].value2;
-                        inode->_ctx[index].value2 = 0;
+
+                if (ictx->_ctx[index].value1 && value1) {
+                        *value1 = ictx->_ctx[index].value1;
+                        ictx->_ctx[index].value1 = 0;
+                }
+                if (ictx->_ctx[index].value2 && value2) {
+                        *value2 = ictx->_ctx[index].value2;
+                        ictx->_ctx[index].value2 = 0;
                 }
         }
 unlock:
@@ -2328,6 +2457,7 @@ inode_dump (inode_t *inode, char *prefix)
         struct list_head   fd_list;
         int                ref       = 0;
         char               key[GF_DUMP_MAX_BUF_LEN];
+        struct inode_ctx_list *ictx = NULL;
 
         if (!inode)
                 return;
@@ -2346,17 +2476,17 @@ inode_dump (inode_t *inode, char *prefix)
                 gf_proc_dump_write("fd-count", "%u", inode->fd_count);
                 gf_proc_dump_write("ref", "%u", inode->ref);
                 gf_proc_dump_write("ia_type", "%d", inode->ia_type);
-                if (inode->_ctx) {
-                        inode_ctx = GF_CALLOC (inode->table->ctxcount,
+                list_for_each_entry (ictx, &inode->ctx_list, inode_list) {
+                        inode_ctx = GF_CALLOC (ictx->graph->xl_count,
                                                sizeof (*inode_ctx),
                                                gf_common_mt_inode_ctx);
                         if (inode_ctx == NULL) {
                                 goto unlock;
                         }
 
-                        for (i = 0; i < inode->table->ctxcount;
+                        for (i = 0; i < ictx->graph->xl_count;
                              i++) {
-                                inode_ctx[i] = inode->_ctx[i];
+                                inode_ctx[i] = ictx->_ctx[i];
                                 xl = inode_ctx[i].xl_key;
                                 ref = inode_ctx[i].ref;
                                 if (ref != 0 && xl) {
@@ -2381,9 +2511,9 @@ unlock:
         UNLOCK(&inode->lock);
 
         if (inode_ctx && (dump_options.xl_options.dump_inodectx == _gf_true)) {
-                for (i = 0; i < inode->table->ctxcount; i++) {
+                for (i = 0; i < ictx->graph->xl_count; i++) {
                         if (inode_ctx[i].xl_key) {
-                                xl = (xlator_t *)(long)inode_ctx[i].xl_key;
+                                xl = inode_ctx[i].xl_key;
                                 if (xl->dumpops && xl->dumpops->inodectx)
                                         xl->dumpops->inodectx (xl, inode);
                         }
@@ -2529,23 +2659,34 @@ out:
         return;
 }
 
+/* This function is used to get an estimate of size used up by inode ctx */
 size_t
 inode_ctx_size (inode_t *inode)
 {
         int       i    = 0;
         size_t    size = 0;
         xlator_t *xl   = NULL, *old_THIS = NULL;
+        struct inode_ctx_list *ictx = NULL;
 
         if (!inode)
                 goto out;
 
         LOCK (&inode->lock);
         {
-                for (i = 0; i < inode->table->ctxcount; i++) {
-                        if (!inode->_ctx[i].xl_key)
+                list_for_each_entry (ictx, &inode->ctx_list, inode_list) {
+                        if (ictx->graph == THIS->graph)
+                                break;
+                }
+
+                if (ictx->graph != THIS->graph) {
+                        goto unlock;
+                }
+
+                for (i = 0; i < ictx->graph->xl_count; i++) {
+                        if (!ictx->_ctx[i].xl_key)
                                 continue;
 
-                        xl = (xlator_t *)(long)inode->_ctx[i].xl_key;
+                        xl = (xlator_t *)(long)ictx->_ctx[i].xl_key;
                         old_THIS = THIS;
                         THIS = xl;
 
@@ -2564,6 +2705,7 @@ inode_ctx_size (inode_t *inode)
                         THIS = old_THIS;
                 }
         }
+unlock:
         UNLOCK (&inode->lock);
 
 out:
