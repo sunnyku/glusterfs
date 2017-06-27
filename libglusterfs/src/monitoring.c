@@ -112,6 +112,18 @@ dump_call_stack_details (glusterfs_ctx_t *ctx, int fd)
 }
 
 static void
+dump_inode_stats (glusterfs_ctx_t *ctx, int fd)
+{
+        dprintf (fd, "global.inodetable.active %u\n",
+                 ((inode_table_t *)ctx->itable)->active_size);
+        dprintf (fd, "global.inodetable.lru_list %u\n",
+                 ((inode_table_t *)ctx->itable)->purge_size);
+        dprintf (fd, "global.inodetable.purge_list %u\n",
+                 ((inode_table_t *)ctx->itable)->lru_size);
+
+}
+
+static void
 dump_metrics (glusterfs_ctx_t *ctx, int fd)
 {
         xlator_t *xl = NULL;
@@ -126,6 +138,9 @@ dump_metrics (glusterfs_ctx_t *ctx, int fd)
         dprintf (fd, "-----\n");
 
         dump_call_stack_details (ctx, fd);
+        dprintf (fd, "-----\n");
+
+        dump_inode_stats (ctx, fd);
         dprintf (fd, "-----\n");
 
         while (xl) {
