@@ -121,6 +121,10 @@ dump_inode_stats (glusterfs_ctx_t *ctx, int fd)
         dprintf (fd, "global.inodetable.purge_list %u\n",
                  ((inode_table_t *)ctx->itable)->lru_size);
 
+        dprintf (fd, "global.inodetable.total_fd %lu\n",
+                 GF_ATOMIC_GET ((((inode_table_t *)ctx->itable)->total_fd)));
+        dprintf (fd, "global.inodetable.in_use_fd %lu\n",
+                 GF_ATOMIC_GET ((((inode_table_t *)ctx->itable)->in_use_fd)));
 }
 
 static void

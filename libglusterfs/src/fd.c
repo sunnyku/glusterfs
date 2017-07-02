@@ -496,6 +496,8 @@ fd_destroy (fd_t *fd, gf_boolean_t bound)
                 goto out;
         }
 
+        GF_ATOMIC_DEC (fd->inode->table->in_use_fd);
+
         if (list_empty(&fd->ctx_list)) {
                 gf_msg (THIS->name, GF_LOG_DEBUG, 0, LG_MSG_INVALID_ARG,
                         "_ctx not found");
@@ -541,6 +543,7 @@ noctx:
         fd->inode = NULL;
         fd_lk_ctx_unref (fd->lk_ctx);
         mem_put (fd);
+
 out:
         return;
 }
@@ -635,6 +638,10 @@ __fd_create (inode_t *inode, uint64_t pid)
         INIT_LIST_HEAD (&fd->ctx_list);
 
         LOCK_INIT (&fd->lock);
+
+        GF_ATOMIC_INC (inode->table->total_fd);
+        GF_ATOMIC_INC (inode->table->in_use_fd);
+
 out:
         return fd;
 
