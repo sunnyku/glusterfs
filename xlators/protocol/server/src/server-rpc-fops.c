@@ -6678,6 +6678,11 @@ server3_3_lookup (rpcsvc_request_t *req)
                                       ret, out);
 
         ret = 0;
+
+#if DONT_WIND_DISCOVER_IN_LOOKUP
+        discover = _gf_false;
+#endif
+
         if (!discover) {
                 resolve_and_resume (frame, server_lookup_resume);
         } else {
