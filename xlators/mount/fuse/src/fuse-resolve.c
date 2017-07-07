@@ -230,35 +230,70 @@ fuse_resolve_parent_simple (fuse_state_t *state)
         fuse_resolve_t *resolve   = NULL;
 	loc_t          *loc       = NULL;
         inode_t        *parent    = NULL;
+        inode_t        *inode     = NULL;
+        xlator_t       *this      = NULL;
 
         resolve = state->resolve_now;
 	loc = state->loc_now;
+        this = state->this;
 
 	loc->name = resolve->bname;
 
 	parent = resolve->parhint;
-        if (inode_needs_lookup (parent, THIS))
-                return 1;
+	if (parent->table == state->itable) {
+		if (inode_needs_lookup (parent, THIS))
+			return 1;
 
-        /* no graph switches since */
-        loc->parent = inode_ref (parent);
-        gf_uuid_copy (loc->pargfid, parent->gfid);
-        loc->inode = inode_grep (state->itable, parent, loc->name);
+		/* no graph switches since */
+		loc->parent = inode_ref (parent);
+		gf_uuid_copy (loc->pargfid, parent->gfid);
+		loc->inode = inode_grep (state->itable, parent, loc->name);
 
-        /* nodeid for root is 1 and we blindly take the latest graph's
-         * table->root as the parhint and because of this there is
-         * ambiguity whether the entry should have existed or not, and
-         * we took the conservative approach of assuming entry should
-         * have been there even though it need not have (bug #804592).
-         */
-        if ((loc->inode == NULL)
-            && __is_root_gfid (parent->gfid)) {
-                /* non decisive result - entry missing */
-                return -1;
-        }
+                /* nodeid for root is 1 and we blindly take the latest graph's
+                 * table->root as the parhint and because of this there is
+                 * ambiguity whether the entry should have existed or not, and
+                 * we took the conservative approach of assuming entry should
+                 * have been there even though it need not have (bug #804592).
+                 */
 
-	/* decisive result - resolution success */
-        return 0;
+                if (loc->inode && inode_needs_lookup (loc->inode, THIS)) {
+                        inode_unref (loc->inode);
+                        loc->inode = NULL;
+                        return -1;
+                }
+
+                if ((loc->inode == NULL)
+                    && __is_root_gfid (parent->gfid)) {
+                        /* non decisive result - entry missing */
+                        return -1;
+                }
+
+		/* decisive result - resolution success */
+		return 0;
+	}
+
+        parent = inode_find (state->itable, resolve->pargfid);
+	if (!parent) {
+		/* non decisive result - parent missing */
+		return 1;
+	}
+	if (inode_needs_lookup (parent, THIS)) {
+		inode_unref (parent);
+		return 1;
+	}
+
+	loc->parent = parent;
+        gf_uuid_copy (loc->pargfid, resolve->pargfid);
+
+	inode = inode_grep (state->itable, parent, loc->name);
+	if (inode && !inode_needs_lookup (inode, this)) {
+		loc->inode = inode;
+		/* decisive result - resolution success */
+		return 0;
+	}
+
+	/* non decisive result - entry missing */
+        return -1;
 }
 
 
@@ -295,13 +330,17 @@ fuse_resolve_inode_simple (fuse_state_t *state)
 	loc = state->loc_now;
 
 	inode = resolve->hint;
-        inode_ref (inode);
+	if (inode->table == state->itable)
+		inode_ref (inode);
+	else
+		inode = inode_find (state->itable, resolve->gfid);
 
-        if (!inode_needs_lookup (inode, THIS))
-                goto found;
-
-        /* inode was linked through readdirplus */
-        inode_unref (inode);
+        if (inode) {
+		if (!inode_needs_lookup (inode, THIS))
+			goto found;
+		/* inode was linked through readdirplus */
+		inode_unref (inode);
+	}
 
         return 1;
 found:
@@ -333,8 +372,9 @@ fuse_migrate_fd_task (void *data)
 {
         int            ret        = -1;
         fuse_state_t  *state      = NULL;
-        fd_t          *basefd     = NULL;
+        fd_t          *basefd     = NULL, *oldfd = NULL;
         fuse_fd_ctx_t *basefd_ctx = NULL;
+        xlator_t      *old_subvol = NULL;
 
         state = data;
         if (state == NULL) {
@@ -347,7 +387,16 @@ fuse_migrate_fd_task (void *data)
         if (!basefd_ctx)
                 goto out;
 
-        ret = fuse_migrate_fd (state->this, basefd, basefd_ctx->subvol,
+        LOCK (&basefd->lock);
+        {
+                oldfd = basefd_ctx->activefd ? basefd_ctx->activefd : basefd;
+                fd_ref (oldfd);
+        }
+        UNLOCK (&basefd->lock);
+
+        old_subvol = oldfd->inode->table->xl;
+
+        ret = fuse_migrate_fd (state->this, basefd, old_subvol,
                                state->active_subvol);
 
         LOCK (&basefd->lock);
@@ -363,6 +412,9 @@ fuse_migrate_fd_task (void *data)
         ret = 0;
 
 out:
+        if (oldfd)
+                fd_unref (oldfd);
+
         return ret;
 }
 
@@ -383,11 +435,29 @@ fuse_migrate_fd_error (xlator_t *this, fd_t *fd)
         return error;
 }
 
+#define FUSE_FD_GET_ACTIVE_FD(activefd, basefd)                 \
+        do {                                                    \
+                LOCK (&basefd->lock);                           \
+                {                                               \
+                        activefd = basefd_ctx->activefd ?       \
+                                basefd_ctx->activefd : basefd;  \
+                        if (activefd != basefd) {               \
+                                fd_ref (activefd);              \
+                        }                                       \
+                }                                               \
+                UNLOCK (&basefd->lock);                         \
+                                                                \
+                if (activefd == basefd) {                       \
+                        fd_ref (activefd);                      \
+                }                                               \
+        } while (0);
+
+
 static int
 fuse_resolve_fd (fuse_state_t *state)
 {
         fuse_resolve_t *resolve            = NULL;
-	fd_t           *basefd             = NULL;
+	fd_t           *basefd             = NULL, *activefd = NULL;
 	xlator_t       *active_subvol      = NULL, *this = NULL;
         int             ret                = 0;
         char            fd_migration_error = 0;
@@ -399,8 +469,19 @@ fuse_resolve_fd (fuse_state_t *state)
 
         basefd = resolve->fd;
         basefd_ctx = fuse_fd_ctx_get (this, basefd);
+        if (basefd_ctx == NULL) {
+                gf_log (state->this->name, GF_LOG_WARNING,
+                        "fdctx is NULL for basefd (ptr:%p inode-gfid:%s), "
+                        "resolver erroring out with errno EINVAL",
+                        basefd, uuid_utoa (basefd->inode->gfid));
+                resolve->op_ret = -1;
+                resolve->op_errno = EINVAL;
+                goto resolve_continue;
+        }
 
-        active_subvol = basefd_ctx->subvol;
+        FUSE_FD_GET_ACTIVE_FD (activefd, basefd);
+
+        active_subvol = activefd->inode->table->xl;
 
         fd_migration_error = fuse_migrate_fd_error (state->this, basefd);
         if (fd_migration_error) {
@@ -412,6 +493,10 @@ fuse_resolve_fd (fuse_state_t *state)
 
                 fd_migration_error = fuse_migrate_fd_error (state->this,
                                                             basefd);
+                fd_unref (activefd);
+
+                FUSE_FD_GET_ACTIVE_FD (activefd, basefd);
+                active_subvol = activefd->inode->table->xl;
 
                 if ((ret == -1) || fd_migration_error
                     || (state->active_subvol != active_subvol)) {
@@ -466,7 +551,17 @@ fuse_resolve_fd (fuse_state_t *state)
                         state->active_subvol->graph->id);
         }
 
+        if (activefd != basefd) {
+                state->fd = fd_ref (activefd);
+                fd_unref (basefd);
+        }
+
 	/* state->active_subvol = active_subvol; */
+
+resolve_continue:
+        if (activefd != NULL) {
+                fd_unref (activefd);
+        }
 
         fuse_resolve_continue (state);
 

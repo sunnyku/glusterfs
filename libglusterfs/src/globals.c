@@ -435,7 +435,6 @@ gf_globals_init_once ()
                         "ERROR: glusterfs syncopctx init failed");
                 goto out;
         }
-
 out:
 
         if (ret) {
@@ -457,5 +456,6 @@ glusterfs_globals_init (glusterfs_ctx_t *ctx)
         if (ret)
                 gf_msg ("", GF_LOG_CRITICAL, ret, LG_MSG_PTHREAD_FAILED,
                         "pthread_once failed");
+
         return ret;
 }

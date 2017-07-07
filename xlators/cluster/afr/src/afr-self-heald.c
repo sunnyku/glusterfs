@@ -973,8 +973,7 @@ afr_selfheal_daemon_init (xlator_t *this)
 	priv = this->private;
 	shd = &priv->shd;
 
-        /* use global itable */
-	this->itable = this->ctx->itable;
+	this->itable = inode_table_new (SHD_INODE_LRU_LIMIT, this);
 	if (!this->itable)
 		goto out;
 

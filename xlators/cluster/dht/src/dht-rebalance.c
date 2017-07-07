@@ -2342,7 +2342,7 @@ dht_build_root_inode (xlator_t *this, inode_t **inode)
         inode_table_t    *itable        = NULL;
         uuid_t            root_gfid     = {0, };
 
-        itable = this->ctx->itable;
+        itable = inode_table_new (0, this);
         if (!itable)
                 return;
 

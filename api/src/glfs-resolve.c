@@ -86,38 +86,46 @@ glfs_refresh_inode_safe (xlator_t *subvol, inode_t *oldinode,
         gf_boolean_t lookup_needed = _gf_false;
         uint64_t     ctx_value = LOOKUP_NOT_NEEDED;
 
-	if (!oldinode)
-		goto out;
 
-        loc.inode = inode_ref (oldinode);
-	if (!need_lookup) {
-                lookup_needed = inode_needs_lookup (oldinode, THIS);
+	if (!oldinode)
+		return NULL;
+
+	if (!need_lookup && oldinode->table->xl == subvol)
+		return inode_ref (oldinode);
+
+	newinode = inode_find (subvol->itable, oldinode->gfid);
+	if (!need_lookup && newinode) {
+
+                lookup_needed = inode_needs_lookup (newinode, THIS);
                 if (!lookup_needed)
-                        return oldinode;
+                        return newinode;
         }
+
+	gf_uuid_copy (loc.gfid, oldinode->gfid);
+        if (!newinode)
+                loc.inode = inode_new (subvol->itable);
+        else
+                loc.inode = newinode;
+
+	if (!loc.inode)
+		return NULL;
 
 	ret = syncop_lookup (subvol, &loc, &iatt, 0, 0, 0);
         DECODE_SYNCOP_ERR (ret);
+
 	if (ret) {
 		gf_msg (subvol->name, GF_LOG_WARNING, errno,
                         API_MSG_INODE_REFRESH_FAILED,
 			"inode refresh of %s failed: %s",
 			uuid_utoa (oldinode->gfid), strerror (errno));
-                goto out;
+		loc_wipe (&loc);
+		return NULL;
 	}
 
 	newinode = inode_link (loc.inode, 0, 0, &iatt);
         if (newinode) {
-                if (newinode == loc.inode) {
-                        ret = inode_ctx_set2 (newinode, THIS,
-                                              &ctx_value, (uint64_t *)subvol);
-                } else {
-                        ret = inode_ctx_set2 (newinode, THIS,
-                                              NULL, (uint64_t *)subvol);
-                }
-                if (ret)
-                        gf_log ("glfs-api", GF_LOG_DEBUG, "failed to set ctx");
-
+                if (newinode == loc.inode)
+                        inode_ctx_set (newinode, THIS, &ctx_value);
                 inode_lookup (newinode);
         } else {
                 gf_msg (subvol->name, GF_LOG_WARNING, errno,
@@ -125,7 +133,6 @@ glfs_refresh_inode_safe (xlator_t *subvol, inode_t *oldinode,
                         "inode linking of %s failed",
                         uuid_utoa ((unsigned char *)&iatt.ia_gfid));
         }
-out:
 
 	loc_wipe (&loc);
 
@@ -596,7 +603,7 @@ glfs_lresolve (struct glfs *fs, xlator_t *subvol, const char *origpath,
 
 int
 glfs_migrate_fd_locks_safe (struct glfs *fs, xlator_t *oldsubvol, fd_t *oldfd,
-			    xlator_t *newsubvol)
+			    xlator_t *newsubvol, fd_t *newfd)
 {
 	dict_t *lockinfo = NULL;
 	int ret = 0;
@@ -604,6 +611,8 @@ glfs_migrate_fd_locks_safe (struct glfs *fs, xlator_t *oldsubvol, fd_t *oldfd,
 
 	if (!oldfd->lk_ctx || fd_lk_ctx_empty (oldfd->lk_ctx))
 		return 0;
+
+	newfd->lk_ctx = fd_lk_ctx_ref (oldfd->lk_ctx);
 
 	ret = syncop_fgetxattr (oldsubvol, oldfd, &lockinfo,
 				GF_XATTR_LOCKINFO_KEY, NULL, NULL);
@@ -627,13 +636,13 @@ glfs_migrate_fd_locks_safe (struct glfs *fs, xlator_t *oldsubvol, fd_t *oldfd,
 		goto out;
 	}
 
-	ret = syncop_fsetxattr (newsubvol, oldfd, lockinfo, 0, NULL, NULL);
+	ret = syncop_fsetxattr (newsubvol, newfd, lockinfo, 0, NULL, NULL);
         DECODE_SYNCOP_ERR (ret);
 	if (ret < 0) {
 		gf_msg (fs->volname, GF_LOG_WARNING, 0,
                         API_MSG_FSETXATTR_FAILED,
 			"fsetxattr (%s) failed (%s) on graph %s (%d)",
-			uuid_utoa_r (oldfd->inode->gfid, uuid1),
+			uuid_utoa_r (newfd->inode->gfid, uuid1),
 			strerror (errno),
 			graphid_str (newsubvol), newsubvol->graph->id);
 		goto out;
@@ -648,19 +657,17 @@ out:
 fd_t *
 glfs_migrate_fd_safe (struct glfs *fs, xlator_t *newsubvol, fd_t *oldfd)
 {
+	fd_t *newfd = NULL;
 	inode_t *oldinode = NULL;
+	inode_t *newinode = NULL;
 	xlator_t *oldsubvol = NULL;
 	int ret = -1;
 	loc_t loc = {0, };
 	char uuid1[64];
-        uint64_t value = 0;
 
-        ret = fd_ctx_get (oldfd, THIS, &value);
-        if (ret) {
-                /* context not set, something wrong */
-                goto out;
-        }
-        oldsubvol = (xlator_t *)(long)value;
+
+	oldinode = oldfd->inode;
+	oldsubvol = oldinode->table->xl;
 
 	if (oldsubvol == newsubvol)
 		return fd_ref (oldfd);
@@ -677,6 +684,30 @@ glfs_migrate_fd_safe (struct glfs *fs, xlator_t *newsubvol, fd_t *oldfd)
 		}
 	}
 
+	newinode = glfs_refresh_inode_safe (newsubvol, oldinode, _gf_false);
+	if (!newinode) {
+		gf_msg (fs->volname, GF_LOG_WARNING, errno,
+                        API_MSG_INODE_REFRESH_FAILED,
+			"inode (%s) refresh failed (%s) on graph %s (%d)",
+			uuid_utoa_r (oldinode->gfid, uuid1),
+			strerror (errno),
+			graphid_str (newsubvol), newsubvol->graph->id);
+		goto out;
+	}
+
+	newfd = fd_create (newinode, getpid());
+	if (!newfd) {
+		gf_msg (fs->volname, GF_LOG_WARNING, errno,
+                        API_MSG_FDCREATE_FAILED,
+			"fd_create (%s) failed (%s) on graph %s (%d)",
+			uuid_utoa_r (newinode->gfid, uuid1),
+			strerror (errno),
+			graphid_str (newsubvol), newsubvol->graph->id);
+		goto out;
+	}
+
+	loc.inode = inode_ref (newinode);
+
         ret = inode_path (oldfd->inode, NULL, (char **)&loc.path);
         if (ret < 0) {
                 gf_msg (fs->volname, GF_LOG_INFO, 0, API_MSG_INODE_PATH_FAILED,
@@ -684,14 +715,15 @@ glfs_migrate_fd_safe (struct glfs *fs, xlator_t *newsubvol, fd_t *oldfd)
                 goto out;
         }
 
-        loc.inode = inode_ref (oldfd->inode);
+        gf_uuid_copy (loc.gfid, oldinode->gfid);
+
 
 	if (IA_ISDIR (oldinode->ia_type))
-		ret = syncop_opendir (newsubvol, &loc, oldfd, NULL, NULL);
+		ret = syncop_opendir (newsubvol, &loc, newfd, NULL, NULL);
 	else
 		ret = syncop_open (newsubvol, &loc,
 				   oldfd->flags & ~(O_TRUNC|O_EXCL|O_CREAT),
-				   oldfd, NULL, NULL);
+				   newfd, NULL, NULL);
         DECODE_SYNCOP_ERR (ret);
 	loc_wipe (&loc);
 
@@ -700,26 +732,37 @@ glfs_migrate_fd_safe (struct glfs *fs, xlator_t *newsubvol, fd_t *oldfd)
                         API_MSG_SYNCOP_OPEN_FAILED,
 			"syncop_open%s (%s) failed (%s) on graph %s (%d)",
 			IA_ISDIR (oldinode->ia_type) ? "dir" : "",
-			uuid_utoa_r (oldfd->inode->gfid, uuid1),
+			uuid_utoa_r (newinode->gfid, uuid1),
 			strerror (errno),
 			graphid_str (newsubvol), newsubvol->graph->id);
 		goto out;
 	}
 
-	ret = glfs_migrate_fd_locks_safe (fs, oldsubvol, oldfd, newsubvol);
+	ret = glfs_migrate_fd_locks_safe (fs, oldsubvol, oldfd, newsubvol,
+					  newfd);
 
 	if (ret) {
 		gf_msg (fs->volname, GF_LOG_WARNING, errno,
                         API_MSG_LOCK_MIGRATE_FAILED,
 			"lock migration (%s) failed (%s) on graph %s (%d)",
-			uuid_utoa_r (oldfd->inode->gfid, uuid1),
+			uuid_utoa_r (newinode->gfid, uuid1),
 			strerror (errno),
 			graphid_str (newsubvol), newsubvol->graph->id);
 		goto out;
 	}
 
+        newfd->flags = oldfd->flags;
+	fd_bind (newfd);
 out:
-	return oldfd;
+	if (newinode)
+		inode_unref (newinode);
+
+	if (ret) {
+		fd_unref (newfd);
+		newfd = NULL;
+	}
+
+	return newfd;
 }
 
 
@@ -748,29 +791,18 @@ fd_t *
 __glfs_resolve_fd (struct glfs *fs, xlator_t *subvol, struct glfs_fd *glfd)
 {
 	fd_t *fd = NULL;
-        uint64_t  value = 0;
-        xlator_t *current_subvol = NULL;
-        int ret = 0;
 
-        ret = fd_ctx_get (glfd->fd, THIS, &value);
-        if (ret) {
-                gf_log ("glfs-api", GF_LOG_DEBUG,
-                        "failed to get current subvol");
-        }
-
-        current_subvol = (xlator_t *)(long)value;
-	if (current_subvol == subvol)
+	if (glfd->fd->inode->table->xl == subvol)
 		return fd_ref (glfd->fd);
 
 	fd = __glfs_migrate_fd (fs, subvol, glfd);
+	if (!fd)
+		return NULL;
 
-	if (fd) {
-                ret = fd_ctx_set (glfd->fd, THIS, (uint64_t)subvol);
-                if (ret)
-                        gf_log ("glfs-api", GF_LOG_WARNING,
-                                "failed to set the current subvol as %s",
-                                subvol->name);
-        }
+	if (subvol == fs->active_subvol) {
+		fd_unref (glfd->fd);
+		glfd->fd = fd_ref (fd);
+	}
 
 	return fd;
 }
@@ -796,7 +828,6 @@ __glfs_migrate_openfds (struct glfs *fs, xlator_t *subvol)
 {
 	struct glfs_fd *glfd = NULL;
 	fd_t *fd = NULL;
-        int ret = 0;
 
 	list_for_each_entry (glfd, &fs->openfds, openfds) {
 		if (gf_uuid_is_null (glfd->fd->inode->gfid)) {
@@ -810,12 +841,10 @@ __glfs_migrate_openfds (struct glfs *fs, xlator_t *subvol)
 		}
 
 		fd = __glfs_migrate_fd (fs, subvol, glfd);
-                if (fd) {
-                        ret = fd_ctx_set (fd, THIS, (uint64_t)subvol);
-                        if (ret)
-                                gf_log ("glfs-api", GF_LOG_INFO,
-                                        "failed to set the current subvol");
-                }
+		if (fd) {
+			fd_unref (glfd->fd);
+			glfd->fd = fd;
+		}
 	}
 }
 
@@ -950,17 +979,7 @@ GFAPI_SYMVER_PRIVATE_DEFAULT(glfs_active_subvol, 3.4.0);
 int
 __glfs_cwd_set (struct glfs *fs, inode_t *inode)
 {
-        int ret = 0;
-        xlator_t *subvol = NULL;
-        uint64_t  value  = 0;
-
-        ret = inode_ctx_get (inode, THIS, &value);
-        if (ret)
-                gf_log ("glfs-api", GF_LOG_DEBUG, "failed to get ctx");
-
-        subvol = (xlator_t *)(long)value;
-
-	if (subvol != fs->active_subvol) {
+	if (inode->table->xl != fs->active_subvol) {
 		inode = __glfs_refresh_inode (fs, fs->active_subvol, inode,
                                               _gf_false);
 		if (!inode)
@@ -997,20 +1016,11 @@ inode_t *
 __glfs_cwd_get (struct glfs *fs)
 {
 	inode_t *cwd = NULL;
-        xlator_t *subvol = NULL;
-        int ret = 0;
-        uint64_t value = 0;
 
 	if (!fs->cwd)
 		return NULL;
 
-        ret = inode_ctx_get (fs->cwd, THIS, &value);
-        if (ret)
-                gf_log ("glfs-api", GF_LOG_DEBUG, "failed to get ctx");
-
-        subvol = (xlator_t *)(long)value;
-
-	if (subvol == fs->active_subvol) {
+	if (fs->cwd->table->xl == fs->active_subvol) {
 		cwd = inode_ref (fs->cwd);
 		return cwd;
 	}
@@ -1040,19 +1050,10 @@ __glfs_resolve_inode (struct glfs *fs, xlator_t *subvol,
 {
 	inode_t *inode = NULL;
         gf_boolean_t lookup_needed = _gf_false;
-        int ret = 0;
-        uint64_t  value = 0;
-        xlator_t *curr_subvol = 0;
-
-        ret = inode_ctx_get2 (object->inode, THIS, NULL, &value);
-        if (ret)
-                gf_log ("glfs-api", GF_LOG_DEBUG, "failed to get ctx");
-
-        curr_subvol = (xlator_t *)(long)value;
 
         lookup_needed = inode_needs_lookup (object->inode, THIS);
 
-	if (!lookup_needed && (curr_subvol == subvol))
+	if (!lookup_needed && object->inode->table->xl == subvol)
 		return inode_ref (object->inode);
 
 	inode = __glfs_refresh_inode (fs, fs->active_subvol,
@@ -1063,9 +1064,6 @@ __glfs_resolve_inode (struct glfs *fs, xlator_t *subvol,
 	if (subvol == fs->active_subvol) {
 		inode_unref (object->inode);
 		object->inode = inode_ref (inode);
-                ret = inode_ctx_set (object->inode, THIS, (uint64_t *)subvol);
-                if (ret)
-                        gf_log ("glfs-api", GF_LOG_DEBUG, "failed to set ctx");
 	}
 
 	return inode;

@@ -534,9 +534,6 @@ struct _glusterfs_ctx {
                 gf_atomic_t total_pairs_used;
                 gf_atomic_t total_dicts_used;
         } stats;
-
-        /* Global inode table */
-        void *itable;
 };
 typedef struct _glusterfs_ctx glusterfs_ctx_t;
 

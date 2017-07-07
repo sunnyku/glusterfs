@@ -2546,9 +2546,8 @@ init (xlator_t *this)
                 goto out;
         }
 
-        /* TODO: check why we need another itable */
-        priv->trash_itable = inode_table_new (0);
-        gf_log (this->name, GF_LOG_DEBUG, "brick path is %s", priv->brick_path);
+        priv->trash_itable = inode_table_new (0, this);
+        gf_log (this->name, GF_LOG_DEBUG, "brick path is%s", priv->brick_path);
 
         this->private = (void *)priv;
         ret = 0;

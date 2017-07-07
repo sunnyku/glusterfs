@@ -300,7 +300,7 @@ do {                                                                \
                 goto label;                                         \
         }                                                           \
         old_THIS = THIS;                                            \
-        THIS = glfd->fs->ctx->master;                               \
+        THIS = glfd->fd->inode->table->xl->ctx->master;             \
 } while (0)
 
 

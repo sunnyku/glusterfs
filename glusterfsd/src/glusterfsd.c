@@ -1594,14 +1594,6 @@ glusterfs_ctx_defaults_init (glusterfs_ctx_t *ctx)
         lim.rlim_max = RLIM_INFINITY;
         setrlimit (RLIMIT_CORE, &lim);
 
-        /* need it here as inode_table_new(), uses 'THIS->ctx' */
-        ctx->itable = inode_table_new (0);
-        if (!ctx->itable) {
-                ret = -1;
-                gf_msg ("", GF_LOG_CRITICAL, 0, glusterfsd_msg_14, "inode");
-                goto out;
-        }
-
         ret = 0;
 out:
 

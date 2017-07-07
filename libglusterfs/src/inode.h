@@ -39,6 +39,7 @@ struct _inode_table {
         size_t             hashsize;    /* bucket size of inode hash and dentry hash */
         char              *name;        /* name of the inode table, just for gf_log() */
         inode_t           *root;        /* root directory inode, with number 1 */
+        xlator_t          *xl;          /* xlator to be called to do purge */
         uint32_t           lru_limit;   /* maximum LRU cache size */
         struct list_head  *inode_hash;  /* buckets for inode hash table */
         struct list_head  *name_hash;   /* buckets for dentry hash table */
@@ -58,6 +59,7 @@ struct _inode_table {
            bound to an inode */
         gf_atomic_t total_fd;
         gf_atomic_t in_use_fd;
+        int                ctxcount;    /* number of slots in inode->ctx */
 };
 
 
@@ -90,13 +92,6 @@ struct _inode_ctx {
                                     statedump */
 };
 
-struct inode_ctx_list {
-	struct _inode_ctx  *_ctx;      /* per xlator context location */
-        glusterfs_graph_t  *graph;     /* pointer value of the graph it
-                                          is working on */
-        struct list_head    inode_list;
-};
-
 struct _inode {
         inode_table_t       *table;         /* the table this inode belongs to */
         uuid_t               gfid;
@@ -110,11 +105,7 @@ struct _inode {
         struct list_head     hash;          /* hash table pointers */
         struct list_head     list;          /* active/lru/purge */
 
-        struct list_head     ctx_list;
-
-        /* ctx for graph independent xlators,
-           like fuse, gfapi, server-protocol */
-        struct _inode_ctx    global_ctx;
+        struct _inode_ctx   *_ctx;    /* replacement for dict_t *(inode->ctx) */
 };
 
 
@@ -123,7 +114,7 @@ struct _inode {
 #define GFID_STR_PFX_LEN (sizeof (GFID_STR_PFX) - 1)
 
 inode_table_t *
-inode_table_new (size_t lru_limit);
+inode_table_new (size_t lru_limit, xlator_t *xl);
 
 void
 inode_table_destroy_all (glusterfs_ctx_t *ctx);

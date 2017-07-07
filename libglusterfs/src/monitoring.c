@@ -114,6 +114,7 @@ dump_call_stack_details (glusterfs_ctx_t *ctx, int fd)
 static void
 dump_inode_stats (glusterfs_ctx_t *ctx, int fd)
 {
+        /*
         dprintf (fd, "global.inodetable.active %u\n",
                  ((inode_table_t *)ctx->itable)->active_size);
         dprintf (fd, "global.inodetable.lru_list %u\n",
@@ -125,6 +126,7 @@ dump_inode_stats (glusterfs_ctx_t *ctx, int fd)
                  GF_ATOMIC_GET ((((inode_table_t *)ctx->itable)->total_fd)));
         dprintf (fd, "global.inodetable.in_use_fd %lu\n",
                  GF_ATOMIC_GET ((((inode_table_t *)ctx->itable)->in_use_fd)));
+        */
 }
 
 static void

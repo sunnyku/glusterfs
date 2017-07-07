@@ -677,7 +677,7 @@ init (xlator_t *this)
     GF_OPTION_INIT ("shd-wait-qlength", ec->shd.wait_qlength, uint32, failed);
     GF_OPTION_INIT ("optimistic-change-log", ec->optimistic_changelog, bool, failed);
 
-    this->itable = inode_table_new (EC_SHD_INODE_LRU_LIMIT);
+    this->itable = inode_table_new (EC_SHD_INODE_LRU_LIMIT, this);
     if (!this->itable)
             goto failed;
 
