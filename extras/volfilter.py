@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU General Public License * along
 # with HekaFS.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import print_function
 import copy
 import string
 import sys
@@ -35,7 +36,7 @@ good_xlators = [
 	"storage/posix",
 ]
 
-def copy_stack (old_xl,suffix,recursive=False):
+def copy_stack (old_xl, suffix, recursive=False):
 	if recursive:
 		new_name = old_xl.name + "-" + suffix
 	else:
@@ -45,7 +46,7 @@ def copy_stack (old_xl,suffix,recursive=False):
 	# The results with normal assignment here are . . . amusing.
 	new_xl.opts = copy.deepcopy(old_xl.opts)
 	for sv in old_xl.subvols:
-		new_xl.subvols.append(copy_stack(sv,suffix,True))
+		new_xl.subvols.append(copy_stack(sv, suffix, True))
 	# Patch up the path at the bottom.
 	if new_xl.type == "storage/posix":
 		new_xl.opts["directory"] += ("/" + suffix)
@@ -63,10 +64,10 @@ def cleanup (parent, graph):
 			parent.opts["transport-type"] = "ssl"
 		sv = []
 		for child in parent.subvols:
-			sv.append(cleanup(child,graph))
+			sv.append(cleanup(child, graph))
 		parent.subvols = sv
 	else:
-		parent = cleanup(parent.subvols[0],graph)
+		parent = cleanup(parent.subvols[0], graph)
 	return parent
 
 class Translator:
@@ -82,8 +83,8 @@ class Translator:
 def load (path):
 	# If it's a string, open it; otherwise, assume it's already a
 	# file-like object (most notably from urllib*).
-	if type(path) in types.StringTypes:
-		fp = file(path,"r")
+	if type(path) in (str,):
+		fp = file(path, "r")
 	else:
 		fp = path
 	all_xlators = {}
@@ -98,16 +99,16 @@ def load (path):
 			continue
 		if text[0] == "volume":
 			if xlator:
-				raise RuntimeError, "nested volume definition"
+				raise RuntimeError("nested volume definition")
 			xlator = Translator(text[1])
 			continue
 		if not xlator:
-			raise RuntimeError, "text outside volume definition"
+			raise RuntimeError("text outside volume definition")
 		if text[0] == "type":
 			xlator.type = text[1]
 			continue
 		if text[0] == "option":
-			xlator.opts[text[1]] = string.join(text[2:])
+			xlator.opts[text[1]] = ''.join(text[2:])
 			continue
 		if text[0] == "subvolumes":
 			for sv in text[1:]:
@@ -118,25 +119,25 @@ def load (path):
 			last_xlator = xlator
 			xlator = None
 			continue
-		raise RuntimeError, "unrecognized keyword %s" % text[0]
+		raise RuntimeError("unrecognized keyword %s" % text[0])
 	if xlator:
-		raise RuntimeError, "unclosed volume definition"
+		raise RuntimeError("unclosed volume definition")
 	return all_xlators, last_xlator
 
 def generate (graph, last, stream=sys.stdout):
 	for sv in last.subvols:
 		if not sv.dumped:
-			generate(graph,sv,stream)
-			print >> stream, ""
+			generate(graph, sv, stream)
+			print("", file=stream)
 			sv.dumped = True
-	print >> stream, "volume %s" % last.name
-	print >> stream, "    type %s" % last.type
-	for k, v in last.opts.iteritems():
-		print >> stream, "    option %s %s" % (k, v)
+	print("volume %s" % last.name, file=stream)
+	print("    type %s" % last.type, file=stream)
+	for k, v in last.opts.items():
+		print("    option %s %s" % (k, v), file=stream)
 	if last.subvols:
-		print >> stream, "    subvolumes %s" % string.join(
-			[ sv.name for sv in last.subvols ])
-	print >> stream, "end-volume"
+		print("    subvolumes %s" % ''.join(
+			[ sv.name for sv in last.subvols ]), file=stream)
+	print("end-volume", file=stream)
 
 def push_filter (graph, old_xl, filt_type, opts={}):
 	suffix = "-" + old_xl.type.split("/")[1]
@@ -156,7 +157,7 @@ def push_filter (graph, old_xl, filt_type, opts={}):
 
 def delete (graph, victim):
 	if len(victim.subvols) != 1:
-		raise RuntimeError, "attempt to delete non-unary translator"
+		raise RuntimeError("attempt to delete non-unary translator")
 	for xl in graph.itervalues():
 		while xl.subvols.count(victim):
 			i = xl.subvols.index(victim)
@@ -164,4 +165,4 @@ def delete (graph, victim):
 
 if __name__ == "__main__":
 	graph, last = load(sys.argv[1])
-	generate(graph,last)
+	generate(graph, last)

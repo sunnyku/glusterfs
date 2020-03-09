@@ -20,6 +20,9 @@ TEST $CLI_1 volume create $V0 $H1:$B1/$V0 $H2:$B2/$V0 $H3:$B3/$V0
 TEST $CLI_1 volume start $V0
 
 # test CLI parameter acceptance
+TEST $CLI_1 volume statedump $V0
+TEST $CLI_2 volume statedump $V0
+TEST $CLI_3 volume statedump $V0
 TEST ! $CLI_1 volume statedump $V0 client $H2:0
 TEST ! $CLI_2 volume statedump $V0 client $H2:-1
 TEST $CLI_3 volume statedump $V0 client $H2:765
@@ -40,7 +43,9 @@ cleanup_statedump
 # hostname or IP-address with the connection from the bug-1169302 executable.
 # In our CI it seems not possible to use $H0, 'localhost', $(hostname --fqdn)
 # or even "127.0.0.1"....
-TEST $CLI_3 volume statedump $V0 client $H1:$GFAPI_PID
+sleep 2
+host=`netstat -nap | grep $GFAPI_PID | grep 24007 |  awk '{print $4}' | cut -d: -f1`
+TEST $CLI_3 volume statedump $V0 client $host:$GFAPI_PID
 EXPECT_WITHIN $STATEDUMP_TIMEOUT "Y" path_exists $statedumpdir/glusterdump.$GFAPI_PID*
 
 kill $GFAPI_PID

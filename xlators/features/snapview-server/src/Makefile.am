@@ -1,4 +1,6 @@
+if WITH_SERVER
 xlator_LTLIBRARIES = snapview-server.la
+endif
 xlatordir = $(libdir)/glusterfs/$(PACKAGE_VERSION)/xlator/features
 
 snapview_server_la_LDFLAGS = -module $(GF_XLATOR_DEFAULT_LDFLAGS)
@@ -11,7 +13,7 @@ snapview_server_la_LIBADD = $(top_builddir)/libglusterfs/src/libglusterfs.la \
 	$(RLLIBS) $(top_builddir)/rpc/xdr/src/libgfxdr.la \
 	$(top_builddir)/rpc/rpc-lib/src/libgfrpc.la
 
-noinst_HEADERS = snapview-server.h snapview-server-mem-types.h
+noinst_HEADERS = snapview-server.h snapview-server-mem-types.h snapview-server-messages.h
 
 AM_CPPFLAGS = $(GF_CPPFLAGS) -I$(top_srcdir)/libglusterfs/src \
 	-I$(top_srcdir)/api/src -I$(top_srcdir)/rpc/rpc-lib/src \

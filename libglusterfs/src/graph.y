@@ -22,11 +22,11 @@
 
 #define RELAX_POISONING
 
-#include "xlator.h"
-#include "graph-utils.h"
-#include "logging.h"
-#include "syscall.h"
-#include "libglusterfs-messages.h"
+#include "glusterfs/xlator.h"
+#include "glusterfs/graph-utils.h"
+#include "glusterfs/logging.h"
+#include "glusterfs/syscall.h"
+#include "glusterfs/libglusterfs-messages.h"
 
 static int new_volume (char *name);
 static int volume_type (char *type);
@@ -123,7 +123,7 @@ new_volume (char *name)
         int          ret = 0;
 
         if (!name) {
-                gf_msg_debug ("parser", 0,"Invalid argument name: '%s'", name);
+                gf_msg_debug ("parser", 0,"Invalid argument name");
                 ret = -1;
                 goto out;
         }
@@ -164,7 +164,8 @@ new_volume (char *name)
                 goto out;
         }
 
-        curr->options = get_new_dict ();
+        INIT_LIST_HEAD(&curr->volume_options);
+        curr->options = dict_new ();
 
         if (!curr->options) {
                 GF_FREE (curr->name);
@@ -239,7 +240,7 @@ volume_option (char *key, char *value)
         }
 
         set_value = gf_strdup (value);
-	ret = dict_set_dynstr (curr->options, key, set_value);
+	ret = dict_set_option (curr->options, key, set_value);
 
         if (ret == 1) {
                 gf_msg ("parser", GF_LOG_ERROR, 0,
@@ -542,6 +543,9 @@ glusterfs_graph_new ()
 
         INIT_LIST_HEAD (&graph->list);
 
+        pthread_mutex_init(&graph->mutex, NULL);
+        pthread_cond_init(&graph->child_down_cond, NULL);
+
         gettimeofday (&graph->dob, NULL);
 
         return graph;
@@ -555,14 +559,14 @@ glusterfs_graph_construct (FILE *fp)
         int                tmp_fd = -1;
         glusterfs_graph_t *graph = NULL;
         FILE              *tmp_file = NULL;
-        char               template[PATH_MAX] = {0};
+        char               template[] = "/tmp/tmp.XXXXXX";
 	static pthread_mutex_t graph_mutex = PTHREAD_MUTEX_INITIALIZER;
 
         graph = glusterfs_graph_new ();
         if (!graph)
                 goto err;
 
-        strcpy (template, "/tmp/tmp.XXXXXX");
+        /* coverity[secure_temp] mkstemp uses 0600 as the mode and is safe */
         tmp_fd = mkstemp (template);
         if (-1 == tmp_fd)
                 goto err;

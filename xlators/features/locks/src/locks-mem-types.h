@@ -11,20 +11,18 @@
 #ifndef __LOCKS_MEM_TYPES_H__
 #define __LOCKS_MEM_TYPES_H__
 
-#include "mem-types.h"
+#include <glusterfs/mem-types.h>
 
 enum gf_locks_mem_types_ {
-        gf_locks_mt_pl_dom_list_t = gf_common_mt_end + 1,
-        gf_locks_mt_pl_inode_t,
-        gf_locks_mt_posix_lock_t,
-        gf_locks_mt_pl_entry_lock_t,
-        gf_locks_mt_pl_inode_lock_t,
-        gf_locks_mt_truncate_ops,
-        gf_locks_mt_pl_rw_req_t,
-        gf_locks_mt_posix_locks_private_t,
-        gf_locks_mt_pl_fdctx_t,
-        gf_locks_mt_pl_meta_lock_t,
-        gf_locks_mt_end
+    gf_locks_mt_pl_dom_list_t = gf_common_mt_end + 1,
+    gf_locks_mt_pl_inode_t,
+    gf_locks_mt_posix_lock_t,
+    gf_locks_mt_pl_entry_lock_t,
+    gf_locks_mt_pl_inode_lock_t,
+    gf_locks_mt_pl_rw_req_t,
+    gf_locks_mt_posix_locks_private_t,
+    gf_locks_mt_pl_fdctx_t,
+    gf_locks_mt_pl_meta_lock_t,
+    gf_locks_mt_end
 };
 #endif
-

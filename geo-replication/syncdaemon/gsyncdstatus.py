@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 #
 # Copyright (c) 2011-2014 Red Hat, Inc. <http://www.redhat.com>
 # This file is part of GlusterFS.
@@ -9,10 +9,14 @@
 # cases as published by the Free Software Foundation.
 #
 
+from __future__ import print_function
 import fcntl
 import os
 import tempfile
-import urllib
+try:
+    import urllib.parse as urllib
+except ImportError:
+    import urllib
 import json
 import time
 from datetime import datetime
@@ -99,6 +103,7 @@ class LockedOpen(object):
         return f
 
     def __exit__(self, _exc_type, _exc_value, _traceback):
+        fcntl.flock(self.fileobj, fcntl.LOCK_UN)
         self.fileobj.close()
 
 
@@ -152,11 +157,12 @@ class GeorepStatus(object):
                  **kwargs)
 
     def _update(self, mergerfunc):
+        data = self.default_values
         with LockedOpen(self.filename, 'r+') as f:
             try:
-                data = json.load(f)
+                data.update(json.load(f))
             except ValueError:
-                data = self.default_values
+                pass
 
             data = mergerfunc(data)
             # If Data is not changed by merger func
@@ -399,6 +405,15 @@ class GeorepStatus(object):
 
         return data
 
-    def print_status(self, checkpoint_time=0):
-        for key, value in self.get_status(checkpoint_time).items():
-            print ("%s: %s" % (key, value))
+    def print_status(self, checkpoint_time=0, json_output=False):
+        status_out = self.get_status(checkpoint_time)
+        if json_output:
+            out = {}
+            # Convert all values as string
+            for k, v in status_out.items():
+                out[k] = str(v)
+            print(json.dumps(out))
+            return
+
+        for key, value in status_out.items():
+            print(("%s: %s" % (key, value)))

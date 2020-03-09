@@ -6,6 +6,7 @@
 #               HA resource
 #
 # Authors:      Florian Haas (hastexo Professional Services GmbH)
+#               Jiri Lunacek (Hosting90 Systems s.r.o.)
 #
 # License:      GNU General Public License (GPL)
 
@@ -54,6 +55,14 @@ must have clone ordering enabled.
       <shortdesc lang="en">gluster executable</shortdesc>
       <content type="string" default="$OCF_RESKEY_binary_default"/>
     </parameter>
+    <parameter name="peer_map">
+      <longdesc lang="en">
+      Mapping of hostname - peer name in the gluster cluster
+      in format hostname1:peername1,hostname2:peername2,...
+      </longdesc>
+      <shortdesc lang="en">gluster peer map</shortdesc>
+      <content type="string" default=""/>
+    </parameter>
   </parameters>
   <actions>
     <action name="start"        timeout="20" />
@@ -68,13 +77,27 @@ EOF
 
 }
 
+if [ -n "${OCF_RESKEY_peer_map}" ]; then
+    SHORTHOSTNAME=`echo "${OCF_RESKEY_peer_map}" | egrep -o "$SHORTHOSTNAME\:[^,]+" | awk -F: '{print $2}'`
+fi
+
 volume_getdir() {
     local voldir
-    voldir="@sysconfdir@/glusterd/vols/${OCF_RESKEY_volname}"
+    voldir="@GLUSTERD_WORKDIR@/vols/${OCF_RESKEY_volname}"
 
     [ -d ${voldir} ] || return 1
 
     echo "${voldir}"
+    return 0
+}
+
+volume_getpid_dir() {
+    local volpid_dir
+    volpid_dir="/var/run/gluster/vols/${OCF_RESKEY_volname}"
+
+    [ -d ${volpid_dir} ] || return 1
+
+    echo "${volpid_dir}"
     return 0
 }
 
@@ -92,17 +115,19 @@ volume_getbricks() {
 
 volume_getpids() {
     local bricks
-    local piddir
     local pidfile
     local infofile
-    local voldir
+    local volpid_dir
 
-    voldir=`volume_getdir`
+    volpid_dir=`volume_getpid_dir`
     bricks=`volume_getbricks`
-    piddir="${voldir}/run"
+    
+    if [ -z "$bricks" ]; then
+        return 1
+    fi
 
     for brick in ${bricks}; do
-	pidfile="${piddir}/${SHORTHOSTNAME}${brick}.pid"
+	pidfile="${volpid_dir}/${SHORTHOSTNAME}${brick}.pid"
 	[ -e $pidfile ] || return 1
 	cat $pidfile
     done
@@ -206,6 +231,11 @@ volume_validate_all() {
 
     # Test for required binaries
     check_binary $OCF_RESKEY_binary
+	
+	if [ -z "$SHORTHOSTNAME" ]; then
+		ocf_log err 'Unable to get host in node map'
+		return $OCF_ERR_CONFIGURED
+	fi
 
     return $OCF_SUCCESS
 }

@@ -53,6 +53,9 @@ Maximum number of connect attempts to server. This option should be provided wit
 \fB\-\-acl\fR
 Mount the filesystem with POSIX ACL support.
 .TP
+\fB\-\-localtime\-logging\fR
+Enable localtime log timestamps.
+.TP
 \fB\-\-debug\fR
 Run in debug mode.  This option sets \fB\-\-no\-daemon\fR, \fB\-\-log\-level\fR to DEBUG,
 and \fB\-\-log\-file\fR to console.
@@ -60,8 +63,8 @@ and \fB\-\-log\-file\fR to console.
 \fB\-\-enable\-ino32=BOOL\fR
 Use 32-bit inodes when mounting to workaround application that doesn't support 64-bit inodes.
 .TP
-\fB\-\-fopen\-keep\-cache\fR
-Do not purge the cache on file open.
+\fB\-\-fopen\-keep\-cache[=BOOL]\fR
+Do not purge the cache on file open (default: false).
 .TP
 \fB\-\-mac\-compat=BOOL\fR
 Provide stubs for attributes needed for seamless operation on Macs (the default is off).
@@ -98,11 +101,17 @@ Mount the filesystem in 'worm' mode.
 .TP
 \fB\-\-xlator\-option=VOLUME\-NAME.OPTION=VALUE\fR
 Add/Override a translator option for a volume with the specified value.
+.TP
+\fB\-\-subdir\-mount=SUBDIR\-MOUNT\-PATH\fR
+Mount subdirectory instead of the '/' of volume.
 
 .SS "Fuse options"
 .PP
 .TP
 
+\fB\-\-attr\-times\-granularity=NANOSECONDS\fR
+Declare supported granularity of file attribute times (default is 0 which kernel handles as unspecified; valid real values are between 1 and 1000000000).
+.TP
 \fB\-\-attribute\-timeout=SECONDS\fR
 Set attribute timeout to SECONDS for inodes in fuse kernel module (the default is 1).
 .TP
@@ -112,8 +121,8 @@ Set fuse module's background queue length to N (the default is 64).
 \fB\-\-congestion\-threshold=N\fR
 Set fuse module's congestion threshold to N (the default is 48).
 .TP
-\fB\-\-direct\-io\-mode=BOOL\fR
-Enable/Disable the direct-I/O mode in fuse module (the default is enable).
+\fB\-\-direct\-io\-mode=BOOL|auto\fR
+Specify fuse direct I/O strategy (the default is auto).
 .TP
 \fB\-\-dump-fuse=PATH\f\R
 Dump fuse traffic to PATH
@@ -124,8 +133,16 @@ Set entry timeout to SECONDS in fuse kernel module (the default is 1).
 \fB\-\-gid\-timeout=SECONDS\fR
 Set auxiliary group list timeout to SECONDS for fuse translator (the default is 0).
 .TP
+\fB\-\-kernel-writeback-cache=BOOL\fR
+Enable fuse in-kernel writeback cache.
+.TP
 \fB\-\-negative\-timeout=SECONDS\fR
 Set negative timeout to SECONDS in fuse kernel module (the default is 0).
+.TP
+\fB\-\-auto\-invalidation=BOOL\fR
+controls whether fuse-kernel can auto-invalidate attribute, dentry and
+page-cache. Disable this only if same files/directories are not
+accessed across two different mounts concurrently [default: on].
 .TP
 \fB\-\-volfile-check\fR
 Enable strict volume file checking.

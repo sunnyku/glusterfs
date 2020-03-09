@@ -11,7 +11,7 @@
 #ifdef RPC_XDR
 %#include "rpc-pragmas.h"
 #endif
-%#include "compat.h"
+%#include <glusterfs/compat.h>
 
 struct pmap_port_by_brick_req {
        string   brick<>;
@@ -40,6 +40,7 @@ struct pmap_brick_by_port_rsp {
 struct pmap_signin_req {
        string brick<>;
        int port;
+       int pid;
 };
 
 struct pmap_signin_rsp {

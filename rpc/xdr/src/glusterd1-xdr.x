@@ -11,7 +11,7 @@
 #ifdef RPC_XDR
 %#include "rpc-pragmas.h"
 #endif
-%#include "compat.h"
+%#include <glusterfs/compat.h>
 
  enum glusterd_volume_status {
         GLUSTERD_STATUS_NONE = 0,
@@ -132,6 +132,7 @@ struct gd1_mgmt_brick_op_req {
         string  name<>;
         int     op;
         opaque  input<>;
+        opaque  dict<>;
 } ;
 
 struct gd1_mgmt_brick_op_rsp {

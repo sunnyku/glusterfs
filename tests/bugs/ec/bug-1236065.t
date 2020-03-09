@@ -2,6 +2,7 @@
 
 . $(dirname $0)/../../include.rc
 . $(dirname $0)/../../volume.rc
+SCRIPT_TIMEOUT=400
 
 cleanup
 
@@ -84,7 +85,6 @@ TEST pidof glusterd
 EXPECT "$V0" volinfo_field $V0 'Volume Name'
 EXPECT 'Started' volinfo_field $V0 'Status'
 EXPECT '7' online_brick_count
-
 ## cleanup
 cd
 EXPECT_WITHIN $UMOUNT_TIMEOUT "Y" force_umount $M0

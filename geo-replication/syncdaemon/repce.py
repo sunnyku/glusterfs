@@ -14,30 +14,27 @@ import time
 import logging
 from threading import Condition
 try:
-    import thread
-except ImportError:
-    # py 3
     import _thread as thread
-try:
-    from Queue import Queue
 except ImportError:
-    # py 3
+    import thread
+try:
     from queue import Queue
+except ImportError:
+    from Queue import Queue
 try:
     import cPickle as pickle
 except ImportError:
-    # py 3
     import pickle
 
 from syncdutils import Thread, select, lf
 
-pickle_proto = -1
+pickle_proto = 2
 repce_version = 1.0
 
 
 def ioparse(i, o):
     if isinstance(i, int):
-        i = os.fdopen(i)
+        i = os.fdopen(i, 'rb')
     # rely on duck typing for recognizing
     # streams as that works uniformly
     # in py2 and py3
@@ -57,8 +54,15 @@ def send(out, *args):
 
 
 def recv(inf):
-    """load an object from input stream"""
-    return pickle.load(inf)
+    """load an object from input stream
+    python2 and python3 compatibility, inf is sys.stdin
+    and is opened as text stream by default. Hence using the
+    buffer attribute in python3
+    """
+    if hasattr(inf, "buffer"):
+        return pickle.load(inf.buffer)
+    else:
+        return pickle.load(inf)
 
 
 class RepceServer(object):
@@ -196,14 +200,14 @@ class RepceClient(object):
         """RePCe client is callabe, calling it implements a synchronous
         remote call.
 
-        We do a .push with a cbk which does a wakeup upon receiving anwser,
+        We do a .push with a cbk which does a wakeup upon receiving answer,
         then wait on the RepceJob.
         """
         rjob = self.push(
             meth, *args, **{'cbk': lambda rj, res: rj.wakeup(res)})
         exc, res = rjob.wait()
         if exc:
-            logging.error(lf('call failed on peer',
+            logging.error(lf('call failed',
                              call=repr(rjob),
                              method=meth,
                              error=str(type(res).__name__)))

@@ -2,8 +2,9 @@
 
 CTDB_MNT=/gluster/lock
 PROGNAME="ctdb"
-OPTSPEC="volname:"
+OPTSPEC="volname:,last:"
 VOL=
+LAST=
 # $META is the volume that will be used by CTDB as a shared filesystem.
 # It is not desirable to use this volume for storing 'data' as well.
 # META is set to 'all' (viz. a keyword and hence not a legal volume name)
@@ -12,7 +13,7 @@ VOL=
 META="all"
 
 function parse_args () {
-        ARGS=$(getopt -l $OPTSPEC  -name $PROGNAME $@)
+        ARGS=$(getopt -o '' -l $OPTSPEC -n $PROGNAME -- "$@")
         eval set -- "$ARGS"
 
         while true; do
@@ -20,15 +21,16 @@ function parse_args () {
                 --volname)
                     shift
                     VOL=$1
-                ;;
-
+                    ;;
+                --last)
+                    shift
+                    LAST=$1
+                    ;;
                 *)
-                     shift
-                     break
-                ;;
-
+                    shift
+                    break
+                    ;;
             esac
-
             shift
         done
 }
@@ -51,7 +53,7 @@ function remove_fstab_entry () {
         fi
 }
 
-parse_args $@
+parse_args "$@"
 if [ "$META" = "$VOL" ]
 then
         umount "$CTDB_MNT"

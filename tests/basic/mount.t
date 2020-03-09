@@ -3,15 +3,16 @@
 . $(dirname $0)/../include.rc
 . $(dirname $0)/../nfs.rc
 
-cleanup;
+#G_TESTDEF_TEST_STATUS_CENTOS6=NFS_TEST
 
+cleanup;
 
 ## Start and create a volume
 TEST glusterd
 TEST pidof glusterd
 TEST $CLI volume info;
 
-TEST $CLI volume create $V0 replica 2 stripe 2 $H0:$B0/${V0}{1,2,3,4,5,6,7,8};
+TEST $CLI volume create $V0 replica 3 $H0:$B0/${V0}{1,2,3,4,5,6,7,8,9};
 TEST $CLI volume set $V0 nfs.disable false
 
 function volinfo_field()
@@ -67,6 +68,9 @@ TEST ! rm -f $M1/newfile;
 TEST rm -f $N0/newfile;
 TEST ! stat $M0/newfile;
 TEST ! stat $M1/newfile;
+
+# No need to check for status here right now
+$(dirname $0)/rpc-coverage.sh $N0 >/dev/null
 
 ## Before killing daemon to avoid deadlocks
 EXPECT_WITHIN $UMOUNT_TIMEOUT "Y" umount_nfs $N0

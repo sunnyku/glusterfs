@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 # Copyright (c) 2015 Red Hat, Inc. <http://www.redhat.com/>
@@ -14,7 +14,10 @@ import sys
 import os
 import logging
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
-import urllib
+try:
+    import urllib.parse as urllib
+except ImportError:
+    import urllib
 from errno import ENOTEMPTY
 
 from utils import setup_logger, mkdirp, handle_rm_error
@@ -49,13 +52,13 @@ def mode_create(args):
     session_dir = os.path.join(conf.get_opt("session_dir"),
                                args.session)
     status_file = os.path.join(session_dir, args.volume,
-                               "%s.status" % urllib.quote_plus(args.brick))
+                     "%s.status" % urllib.quote_plus(args.brick))
 
     mkdirp(os.path.join(session_dir, args.volume), exit_on_err=True,
            logger=logger)
 
     if not os.path.exists(status_file) or args.reset_session_time:
-        with open(status_file, "w", buffering=0) as f:
+        with open(status_file, "w") as f:
             f.write(args.time_to_update)
 
     sys.exit(0)
@@ -64,7 +67,7 @@ def mode_create(args):
 def mode_post(args):
     session_dir = os.path.join(conf.get_opt("session_dir"), args.session)
     status_file = os.path.join(session_dir, args.volume,
-                               "%s.status" % urllib.quote_plus(args.brick))
+                     "%s.status" % urllib.quote_plus(args.brick))
 
     mkdirp(os.path.join(session_dir, args.volume), exit_on_err=True,
            logger=logger)

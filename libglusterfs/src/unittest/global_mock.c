@@ -8,8 +8,8 @@
   cases as published by the Free Software Foundation.
 */
 
-#include "logging.h"
-#include "xlator.h"
+#include "glusterfs/logging.h"
+#include "glusterfs/xlator.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -18,7 +18,8 @@
 
 #include <cmocka.h>
 
-xlator_t **__glusterfs_this_location ()
+xlator_t **
+__glusterfs_this_location()
 {
     return ((xlator_t **)(uintptr_t)mock());
 }

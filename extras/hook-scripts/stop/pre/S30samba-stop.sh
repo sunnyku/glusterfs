@@ -16,27 +16,33 @@
 #event by removing the volume related entries(if any) in smb.conf file.
 
 PROGNAME="Ssamba-stop"
-OPTSPEC="volname:"
+OPTSPEC="volname:,last:"
 VOL=
 CONFIGFILE=
 PIDDIR=
+LAST=
 
 function parse_args () {
-        ARGS=$(getopt -l $OPTSPEC  -name $PROGNAME $@)
+        ARGS=$(getopt -o '' -l $OPTSPEC -n $PROGNAME -- "$@")
         eval set -- "$ARGS"
 
         while true; do
-        case $1 in
-        --volname)
-         shift
-         VOL=$1
-         ;;
-        *)
-         shift
-         break
-         ;;
-        esac
-        shift
+            case $1 in
+                --volname)
+                    shift
+                    VOL=$1
+                    ;;
+                --last)
+                    shift
+                    LAST=$1
+                    ;;
+                *)
+                    shift
+                    break
+                    ;;
+            esac
+
+            shift
         done
 }
 
@@ -46,13 +52,13 @@ function find_config_info () {
                 echo "Samba is not installed"
                 exit 1
         fi
-        CONFIGFILE=`echo $cmdout | awk {'print $2'}`
-        PIDDIR=`smbd -b | grep PIDDIR | awk {'print $2'}`
+        CONFIGFILE=`echo $cmdout | awk '{print $2}'`
+        PIDDIR=`smbd -b | grep PIDDIR | awk '{print $2}'`
 }
 
-function del_samba_share () {
+function deactivate_samba_share () {
         volname=$1
-        sed -i "/\[gluster-$volname\]/,/^$/d" ${CONFIGFILE}
+        sed -i -e '/^\[gluster-'"$volname"'\]/{ :a' -e 'n; /available = no/H; /^$/!{$!ba;}; x; /./!{ s/^/available = no/; $!{G;x}; $H; }; s/.*//; x; };' ${CONFIGFILE}
 }
 
 function sighup_samba () {
@@ -65,7 +71,7 @@ function sighup_samba () {
         fi
 }
 
-parse_args $@
+parse_args "$@"
 find_config_info
-del_samba_share $VOL
+deactivate_samba_share $VOL
 sighup_samba

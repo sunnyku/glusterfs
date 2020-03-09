@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 
 # This script was developed by Vijaykumar Koppad (vkoppad@redhat.com)
 # The latest version of this script can found at
@@ -20,6 +19,11 @@ import argparse
 datsiz = 0
 timr = 0
 
+def get_ascii_upper_alpha_digits():
+    if sys.version_info > (3,0):
+        return string.ascii_uppercase+string.digits
+    else:
+        return string.uppercase+string.digits
 
 def setLogger(filename):
     global logger
@@ -51,7 +55,7 @@ def os_rd(src, size):
 def os_wr(dest, data):
     global timr
     st = time.time()
-    fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0644)
+    fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
     os.write(fd, data)
     os.close(fd)
     ed = time.time()
@@ -88,7 +92,7 @@ def create_txt_file(fil, size, mins, maxs, rand):
     else:
         data = os_rd("/etc/services", 512*1024)
         file_size = 0
-        fd = os.open(fil, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0644)
+        fd = os.open(fil, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
         while file_size < size:
             os.write(fd, data)
             file_size += 500*1024
@@ -112,7 +116,7 @@ def create_tar_file(fil, size, mins, maxs, rand):
 
 def get_filename(flen):
     size = flen
-    char = string.uppercase+string.digits
+    char = get_ascii_upper_alpha_digits()
     st = ''.join(random.choice(char) for i in range(size))
     ti = str((hex(int(str(time.time()).split('.')[0])))[2:])
     return ti+"%%"+st
@@ -176,7 +180,7 @@ def tar_files(files, file_count, inter, size, mins, maxs,
 
 
 def setxattr_files(files, randname, dir_path):
-    char = string.uppercase+string.digits
+    char = get_ascii_upper_alpha_digits()
     if not randname:
         for k in range(files):
             v = ''.join(random.choice(char) for i in range(10))
@@ -323,9 +327,9 @@ def human2bytes(size):
 
 def bytes2human(byts):
     abbr = {
-        1 << 30L: "GB",
-        1 << 20L: "MB",
-        1 << 10L: "KB",
+        1 << 30: "GB",
+        1 << 20: "MB",
+        1 << 10: "KB",
         1: "bytes"
     }
     if byts == 1:

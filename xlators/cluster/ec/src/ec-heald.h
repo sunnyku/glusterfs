@@ -11,15 +11,20 @@
 #ifndef __EC_HEALD_H__
 #define __EC_HEALD_H__
 
-#include "xlator.h"
-
-#include "ec-types.h"
-
-int
-ec_xl_op (xlator_t *this, dict_t *input, dict_t *output);
+#include "ec-types.h"           // for ec_t
+#include "glusterfs/dict.h"     // for dict_t
+#include "glusterfs/globals.h"  // for xlator_t
 
 int
-ec_selfheal_daemon_init (xlator_t *this);
-void ec_selfheal_childup (ec_t *ec, int child);
+ec_xl_op(xlator_t *this, dict_t *input, dict_t *output);
+
+int
+ec_selfheal_daemon_init(xlator_t *this);
+
+void
+ec_shd_index_healer_wake(ec_t *ec);
+
+void
+ec_selfheal_daemon_fini(xlator_t *this);
 
 #endif /* __EC_HEALD_H__ */

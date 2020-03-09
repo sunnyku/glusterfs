@@ -11,13 +11,12 @@
 #ifndef _GFID_ACCESS_MEM_TYPES_H
 #define _GFID_ACCESS_MEM_TYPES_H
 
-#include "mem-types.h"
+#include <glusterfs/mem-types.h>
 
 enum gf_changelog_mem_types {
-        gf_gfid_access_mt_priv_t = gf_common_mt_end + 1,
-        gf_gfid_access_mt_gfid_t,
-        gf_gfid_access_mt_end
+    gf_gfid_access_mt_priv_t = gf_common_mt_end + 1,
+    gf_gfid_access_mt_gfid_t,
+    gf_gfid_access_mt_end
 };
 
 #endif
-

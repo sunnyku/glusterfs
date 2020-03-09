@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import string
 
@@ -123,6 +123,8 @@ ops['fstat'] = (
 ops['fsync'] = (
 	('fop-arg',	'fd',			'fd_t *'),
 	('fop-arg',	'flags',		'int32_t'),
+	('extra',	'preop',		'struct iatt',		'&preop'),
+	('extra',	'postop',		'struct iatt',		'&postop'),
 	('fop-arg',	'xdata',		'dict_t *'),
 	('cbk-arg',	'prebuf',		'struct iatt *'),
 	('cbk-arg',	'postbuf',		'struct iatt *'),
@@ -142,6 +144,8 @@ ops['writev'] = (
 	('fop-arg',	'off',			'off_t',			'offset'),
 	('fop-arg',	'flags',		'uint32_t',			'flags'),
 	('fop-arg',	'iobref',		'struct iobref *'),
+	('extra',	'preop',		'struct iatt',		'&preop'),
+	('extra',	'postop',		'struct iatt',		'&postop'),
 	('fop-arg',	'xdata',		'dict_t *',			'xdata'),
 	('cbk-arg',	'prebuf',		'struct iatt *'),
 	('cbk-arg',	'postbuf',		'struct iatt *'),
@@ -154,6 +158,7 @@ ops['readv'] = (
 	('fop-arg',	'size',			'size_t'),
 	('fop-arg',	'offset',		'off_t'),
 	('fop-arg',	'flags',		'uint32_t'),
+	('extra',	'iatt',			'struct iatt',		'&iatt'),
 	('fop-arg',	'xdata',		'dict_t *'),
 	('cbk-arg',	'vector',		'struct iovec *'),
 	('cbk-arg',	'count',		'int32_t'),
@@ -208,9 +213,9 @@ ops['rename'] = (
 	('fop-arg',	'xdata',		'dict_t *',			'xdata'),
 	('cbk-arg',	'buf',			'struct iatt *'),
 	('cbk-arg',	'preoldparent',	'struct iatt *'),
-	('cbk-arg',	'postoldparent','struct iatt *'),
+	('cbk-arg',	'postoldparent', 'struct iatt *'),
 	('cbk-arg',	'prenewparent',	'struct iatt *'),
-	('cbk-arg',	'postnewparent','struct iatt *'),
+	('cbk-arg',	'postnewparent', 'struct iatt *'),
 	('cbk-arg',	'xdata',		'dict_t *'),
 	('journal',	'entry-op'),
 )
@@ -298,6 +303,8 @@ ops['access'] = (
 ops['ftruncate'] = (
 	('fop-arg',	'fd',			'fd_t *',				'fd'),
 	('fop-arg',	'offset',		'off_t',				'offset'),
+	('extra',	'preop',		'struct iatt',		'&preop'),
+	('extra',	'postop',		'struct iatt',		'&postop'),
 	('fop-arg',	'xdata',		'dict_t *',				'xdata'),
 	('cbk-arg',	'prebuf',		'struct iatt *'),
 	('cbk-arg',	'postbuf',		'struct iatt *'),
@@ -536,135 +543,183 @@ ops['getspec'] = (
 )
 
 ops['lease'] = (
-        ('fop-arg',     'loc',                  'loc_t *'),
-        ('fop-arg',     'lease',                'struct gf_lease *'),
-        ('fop-arg',     'xdata',                'dict_t *'),
-        ('cbk-arg',     'lease',                'struct gf_lease *'),
-        ('cbk-arg',     'xdata',                'dict_t *'),
+	('fop-arg',     'loc',                  'loc_t *'),
+	('fop-arg',     'lease',                'struct gf_lease *'),
+	('fop-arg',     'xdata',                'dict_t *'),
+	('cbk-arg',     'lease',                'struct gf_lease *'),
+	('cbk-arg',     'xdata',                'dict_t *'),
 )
 
 ops['getactivelk'] = (
-        ('fop-arg',     'loc',                  'loc_t *'),
-        ('fop-arg',     'xdata',                'dict_t *'),
-        ('cbk-arg',     'locklist',             'lock_migration_info_t *'),
-        ('cbk-arg',     'xdata',                'dict_t *'),
+	('fop-arg',     'loc',                  'loc_t *'),
+	('fop-arg',     'xdata',                'dict_t *'),
+	('cbk-arg',     'locklist',             'lock_migration_info_t *'),
+	('cbk-arg',     'xdata',                'dict_t *'),
 )
 
 ops['setactivelk'] = (
-        ('fop-arg',     'loc',                  'loc_t *'),
-        ('fop-arg',     'locklist',             'lock_migration_info_t *'),
-        ('fop-arg',     'xdata',                'dict_t *'),
-        ('cbk-arg',     'xdata',                'dict_t *'),
+	('fop-arg',     'loc',                  'loc_t *'),
+	('fop-arg',     'locklist',             'lock_migration_info_t *'),
+	('fop-arg',     'xdata',                'dict_t *'),
+	('cbk-arg',     'xdata',                'dict_t *'),
 )
 
+ops['put'] = (
+	('fop-arg',     'loc',                  'loc_t *',                      'loc'),
+	('fop-arg',     'mode',                 'mode_t',                       'mode'),
+	('fop-arg',     'umask',                'mode_t',                       'umask'),
+	('fop-arg',     'flags',                'uint32_t',                     'flags'),
+	('fop-arg',     'vector',               'struct iovec *',               'vector'),
+	('fop-arg',     'count',                'int32_t'),
+	('fop-arg',     'off',                  'off_t',                        'offset'),
+	('fop-arg',     'iobref',               'struct iobref *'),
+	('fop-arg',     'dict',                 'dict_t *',                     'xattr'),
+	('fop-arg',     'xdata',                'dict_t *',                     'xdata'),
+	('cbk-arg',     'inode',                'inode_t *'),
+	('cbk-arg',     'buf',                  'struct iatt *'),
+	('cbk-arg',     'preparent',            'struct iatt *'),
+	('cbk-arg',     'postparent',           'struct iatt *'),
+	('cbk-arg',     'xdata',                'dict_t *'),
+)
+
+ops['icreate'] = (
+	('fop-arg',     'loc',                   'loc_t *'),
+	('fop-arg',     'mode',                  'mode_t'),
+	('fop-arg',     'xdata',                 'dict_t *'),
+	('cbk-arg',     'inode',                 'inode_t *'),
+	('cbk-arg',     'buf',                   'struct iatt *'),
+	('cbk-arg',     'xdata',                 'dict_t *'),
+)
+
+ops['namelink'] = (
+	('fop-arg',     'loc',                   'loc_t *'),
+	('fop-arg',     'xdata',                 'dict_t *'),
+	('cbk-arg',     'prebuf',                'struct iatt *'),
+	('cbk-arg',     'postbuf',               'struct iatt *'),
+	('cbk-arg',     'xdata',                 'dict_t *'),
+)
+
+ops['copy_file_range'] = (
+        ('fop-arg',     'fd_in',                 'fd_t *'),
+        ('fop-arg',     'off_in',                'off64_t '),
+        ('fop-arg',     'fd_out',                'fd_t *'),
+        ('fop-arg',     'off_out',               'off64_t '),
+        ('fop-arg',     'len',                   'size_t'),
+        ('fop-arg',     'flags',                 'uint32_t'),
+        ('fop-arg',     'xdata',                 'dict_t *'),
+        ('cbk-arg',     'stbuf',                 'struct iatt *'),
+        ('cbk-arg',     'prebuf_dst',            'struct iatt *'),
+        ('cbk-arg',     'postbuf_dst',           'struct iatt *'),
+        ('cbk-arg',     'xdata',                 'dict_t *'),
+)
 #####################################################################
 xlator_cbks['forget'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'inode',       'inode_t *'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'inode',       'inode_t *'),
 	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_cbks['release'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'fd',          'fd_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'fd',          'fd_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_cbks['releasedir'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'fd',          'fd_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'fd',          'fd_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_cbks['invalidate'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'inode',       'inode_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'inode',       'inode_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_cbks['client_destroy'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'client',      'client_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'client',      'client_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_cbks['client_disconnect'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'client',      'client_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'client',      'client_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_cbks['ictxmerge'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'fd',          'fd_t *'),
-        ('fn-arg',      'inode',       'inode_t *'),
-        ('fn-arg',      'linked_inode', 'inode_t *'),
-        ('ret-val',     'void',        ''),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'fd',          'fd_t *'),
+	('fn-arg',      'inode',       'inode_t *'),
+	('fn-arg',      'linked_inode', 'inode_t *'),
+	('ret-val',     'void',        ''),
 )
 
 #####################################################################
 xlator_dumpops['priv'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['inode'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['fd'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['inodectx'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'ino',         'inode_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'ino',         'inode_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['fdctx'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'fd',          'fd_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'fd',          'fd_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['priv_to_dict'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'dict',        'dict_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'dict',        'dict_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['inode_to_dict'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'dict',        'dict_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'dict',        'dict_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['fd_to_dict'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'dict',        'dict_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'dict',        'dict_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['inodectx_to_dict'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'ino',         'inode_t *'),
-        ('fn-arg',      'dict',        'dict_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'ino',         'inode_t *'),
+	('fn-arg',      'dict',        'dict_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['fdctx_to_dict'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('fn-arg',      'fd',          'fd_t *'),
-        ('fn-arg',      'dict',        'dict_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('fn-arg',      'fd',          'fd_t *'),
+	('fn-arg',      'dict',        'dict_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 xlator_dumpops['history'] = (
-        ('fn-arg',      'this',        'xlator_t *'),
-        ('ret-val',     'int32_t',     '0'),
+	('fn-arg',      'this',        'xlator_t *'),
+	('ret-val',     'int32_t',     '0'),
 )
 
 def get_error_arg (type_str):
@@ -672,45 +727,50 @@ def get_error_arg (type_str):
 		return "NULL"
 	return "-1"
 
-def get_subs (names, types):
+def get_subs (names, types, cbktypes=None):
 	sdict = {}
-	sdict["@SHORT_ARGS@"] = string.join(names,", ")
+	sdict["@SHORT_ARGS@"] = ', '.join(names)
 	# Convert two separate tuples to one of (name, type) sub-tuples.
-	as_tuples = zip(types,names)
+	as_tuples = list(zip(types, names))
 	# Convert each sub-tuple into a "type name" string.
-	as_strings = map(string.join,as_tuples)
+	as_strings = [' '.join(item) for item in as_tuples]
 	# Join all of those into one big string.
-	sdict["@LONG_ARGS@"] = string.join(as_strings,",\n\t")
+	sdict["@LONG_ARGS@"] = ',\n\t'.join(as_strings)
 	# So much more readable than string.join(map(string.join,zip(...))))
-	sdict["@ERROR_ARGS@"] = string.join(map(get_error_arg,types),", ")
+	sdict["@ERROR_ARGS@"] = ', '.join(list(map(get_error_arg, types)))
+	if cbktypes is not None:
+		sdict["@CBK_ERROR_ARGS@"] = ', '.join(list(map(get_error_arg, cbktypes)))
 	return sdict
 
 def generate (tmpl, name, subs):
-	text = tmpl.replace("@NAME@",name)
+	text = tmpl.replace("@NAME@", name)
 	if name == "writev":
 		# More spurious inconsistency.
-		text = text.replace("@UPNAME@","WRITE")
+		text = text.replace("@UPNAME@", "WRITE")
+	elif name == "readv":
+		text = text.replace("@UPNAME@", "READ")
 	else:
-		text = text.replace("@UPNAME@",name.upper())
-	for old, new in subs[name].iteritems():
-		text = text.replace(old,new)
+		text = text.replace("@UPNAME@", name.upper())
+	for old, new in subs[name].items():
+		text = text.replace(old, new)
 	# TBD: reindent/reformat the result for maximum readability.
-	return  text
+	return text
 
 fop_subs = {}
 cbk_subs = {}
 
-for name, args in ops.iteritems():
+for name, args in ops.items():
 
 	# Create the necessary substitution strings for fops.
 	arg_names = [ a[1] for a in args if a[0] == 'fop-arg']
 	arg_types = [ a[2] for a in args if a[0] == 'fop-arg']
-	fop_subs[name] = get_subs(arg_names,arg_types)
+	cbk_types = [ a[2] for a in args if a[0] == 'cbk-arg']
+	fop_subs[name] = get_subs(arg_names, arg_types, cbk_types)
 
 	# Same thing for callbacks.
 	arg_names = [ a[1] for a in args if a[0] == 'cbk-arg']
 	arg_types = [ a[2] for a in args if a[0] == 'cbk-arg']
-	cbk_subs[name] = get_subs(arg_names,arg_types)
+	cbk_subs[name] = get_subs(arg_names, arg_types)
 
 	# Callers can add other subs to these tables, or even create their
 	# own tables, using these same techniques, and then pass the result

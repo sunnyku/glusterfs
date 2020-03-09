@@ -4,6 +4,8 @@
 . $(dirname $0)/../../volume.rc
 . $(dirname $0)/../../nfs.rc
 
+#G_TESTDEF_TEST_STATUS_CENTOS6=NFS_TEST
+
 TESTS_EXPECTED_IN_LOOP=10
 cleanup;
 
@@ -35,6 +37,3 @@ TEST rm -f /tmp/dir1.tar.gz
 EXPECT_WITHIN $UMOUNT_TIMEOUT "Y" force_umount $N0
 
 cleanup;
-
-#G_TESTDEF_TEST_STATUS_CENTOS6=BAD_TEST,BUG=1337791
-#G_TESTDEF_TEST_STATUS_NETBSD7=BAD_TEST,BUG=1337791

@@ -8,32 +8,27 @@
    cases as published by the Free Software Foundation.
 */
 
-#include "xlator.h"
-#include "defaults.h"
+#include <glusterfs/xlator.h>
+#include <glusterfs/defaults.h>
 
 #include "meta-mem-types.h"
 #include "meta.h"
 
-
 static int
-logfile_link_fill (xlator_t *this, inode_t *inode, strfd_t *strfd)
+logfile_link_fill(xlator_t *this, inode_t *inode, strfd_t *strfd)
 {
-	strprintf (strfd, "%s", this->ctx->log.filename);
+    strprintf(strfd, "%s", this->ctx->log.filename);
 
-	return 0;
+    return 0;
 }
 
-
-struct meta_ops logfile_link_ops = {
-	.link_fill = logfile_link_fill
-};
-
+struct meta_ops logfile_link_ops = {.link_fill = logfile_link_fill};
 
 int
-meta_logfile_link_hook (call_frame_t *frame, xlator_t *this, loc_t *loc,
-			dict_t *xdata)
+meta_logfile_link_hook(call_frame_t *frame, xlator_t *this, loc_t *loc,
+                       dict_t *xdata)
 {
-	meta_ops_set (loc->inode, this, &logfile_link_ops);
+    meta_ops_set(loc->inode, this, &logfile_link_ops);
 
-	return 0;
+    return 0;
 }

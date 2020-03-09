@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 #
 #  Copyright (c) 2016 Red Hat, Inc. <http://www.redhat.com>
@@ -22,7 +22,7 @@ gen_header_type = sys.argv[1]
 # When adding new keys add it to the END
 keys = (
     # user driven events
-    #peer and volume managment events
+    #peer and volume management events
     "EVENT_PEER_ATTACH",
     "EVENT_PEER_DETACH",
     "EVENT_VOLUME_CREATE",
@@ -191,6 +191,10 @@ keys = (
     #tier events
     "EVENT_TIER_START",
     "EVENT_TIER_START_FORCE",
+
+    #brick/inodes events
+    "EVENT_DHT_DISK_USAGE",
+    "EVENT_DHT_INODES_USAGE",
 )
 
 LAST_EVENT = "EVENT_LAST"

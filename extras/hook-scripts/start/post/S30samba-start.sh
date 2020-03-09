@@ -21,15 +21,18 @@
 #volume.
 
 PROGNAME="Ssamba-start"
-OPTSPEC="volname:,gd-workdir:"
+OPTSPEC="volname:,gd-workdir:,version:,volume-op:,first:"
 VOL=
 CONFIGFILE=
 LOGFILEBASE=
 PIDDIR=
 GLUSTERD_WORKDIR=
+VERSION=
+VOLUME_OP=
+FIRST=
 
 function parse_args () {
-        ARGS=$(getopt -l $OPTSPEC  -name $PROGNAME $@)
+        ARGS=$(getopt -o '' -l $OPTSPEC -n $PROGNAME -- "$@")
         eval set -- "$ARGS"
 
         while true; do
@@ -42,24 +45,37 @@ function parse_args () {
                     shift
                     GLUSTERD_WORKDIR=$1
                     ;;
+                --version)
+                    shift
+                    VERSION=$1
+                    ;;
+                --volume-op)
+                    shift
+                    VOLUME_OP=$1
+                    ;;
+                --first)
+                    shift
+                    FIRST=$1
+                    ;;
                 *)
                     shift
                     break
                     ;;
             esac
+
             shift
         done
 }
 
 function find_config_info () {
-        cmdout=`smbd -b | grep smb.conf`
-        if [ $? -ne 0 ];then
+        cmdout=$(smbd -b 2> /dev/null)
+        CONFIGFILE=$(echo "$cmdout" | grep CONFIGFILE | awk '{print $2}')
+        if [ -z "$CONFIGFILE" ]; then
                 echo "Samba is not installed"
                 exit 1
         fi
-        CONFIGFILE=`echo $cmdout | awk {'print $2'}`
-        PIDDIR=`smbd -b | grep PIDDIR | awk {'print $2'}`
-        LOGFILEBASE=`smbd -b | grep 'LOGFILEBASE' | awk '{print $2}'`
+        PIDDIR=$(echo "$cmdout" | grep PIDDIR | awk '{print $2}')
+        LOGFILEBASE=$(echo "$cmdout" | grep 'LOGFILEBASE' | awk '{print $2}')
 }
 
 function add_samba_share () {
@@ -72,12 +88,12 @@ function add_samba_share () {
         STRING+="glusterfs:loglevel = 7\n"
         STRING+="path = /\n"
         STRING+="read only = no\n"
-        STRING+="guest ok = yes\n"
-        printf "$STRING"  >> ${CONFIGFILE}
+        STRING+="kernel share modes = no\n"
+        printf "$STRING"  >> "${CONFIGFILE}"
 }
 
 function sighup_samba () {
-        pid=`cat ${PIDDIR}/smbd.pid`
+        pid=$(cat "${PIDDIR}/smbd.pid" 2> /dev/null)
         if [ "x$pid" != "x" ]
         then
                 kill -HUP "$pid";
@@ -90,26 +106,40 @@ function get_smb () {
         volname=$1
         uservalue=
 
-        usercifsvalue=$(grep user.cifs $GLUSTERD_WORKDIR/vols/"$volname"/info |\
+        usercifsvalue=$(grep user.cifs "$GLUSTERD_WORKDIR"/vols/"$volname"/info |\
                         cut -d"=" -f2)
-        usersmbvalue=$(grep user.smb $GLUSTERD_WORKDIR/vols/"$volname"/info |\
+        usersmbvalue=$(grep user.smb "$GLUSTERD_WORKDIR"/vols/"$volname"/info |\
                        cut -d"=" -f2)
 
-        if [[ $usercifsvalue = "disable" || $usersmbvalue = "disable" ]]; then
-                uservalue="disable"
+        if [ -n "$usercifsvalue" ]; then
+                if [ "$usercifsvalue" = "enable" ] || [ "$usercifsvalue" = "on" ]; then
+                        uservalue="enable"
+                fi
         fi
+
+        if [ -n "$usersmbvalue" ]; then
+                if [ "$usersmbvalue" = "enable" ] || [ "$usersmbvalue" = "on" ]; then
+                        uservalue="enable"
+                fi
+        fi
+
         echo "$uservalue"
 }
 
-parse_args $@
-if [ "$(get_smb "$VOL")" = "disable" ]; then
+parse_args "$@"
+
+value=$(get_smb "$VOL")
+
+if [ -z "$value" ] || [ "$value" != "enable" ]; then
         exit 0
 fi
 
 #Find smb.conf, smbd pid directory and smbd logfile path
 find_config_info
 
-if ! grep --quiet "\[gluster-$VOL\]" ${CONFIGFILE} ; then
-        add_samba_share $VOL
-        sighup_samba
+if ! grep --quiet "\[gluster-$VOL\]" "${CONFIGFILE}" ; then
+        add_samba_share "$VOL"
+else
+        sed -i '/\[gluster-'"$VOL"'\]/,/^$/!b;/available = no/d' "${CONFIGFILE}"
 fi
+sighup_samba

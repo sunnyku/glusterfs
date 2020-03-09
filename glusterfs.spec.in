@@ -9,52 +9,78 @@
 ## All argument definitions should be placed here and keep them sorted
 ##
 
-# if you wish to compile an rpm with debugging...
-# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with debug
-%{?_with_debug:%global _with_debug --enable-debug}
+# asan
+# if you wish to compile an rpm with address sanitizer...
+# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with asan
+%{?_with_asan:%global _with_asan --enable-asan}
 
-# if you wish to compile an rpm to run all processes under valgrind...
-# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with valgrind
-%{?_with_valgrind:%global _with_valgrind --enable-valgrind}
+%if ( 0%{?rhel} && 0%{?rhel} < 7 )
+%global _with_asan %{nil}
+%endif
 
+# cmocka
 # if you wish to compile an rpm with cmocka unit testing...
 # rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with cmocka
 %{?_with_cmocka:%global _with_cmocka --enable-cmocka}
 
-# if you wish to compile an rpm without rdma support, compile like this...
-# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without rdma
-%{?_without_rdma:%global _without_rdma --disable-ibverbs}
+# debug
+# if you wish to compile an rpm with debugging...
+# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with debug
+%{?_with_debug:%global _with_debug --enable-debug}
 
-# No RDMA Support on s390(x)
-%ifarch s390 s390x
-%global _without_rdma --disable-ibverbs
-%endif
-
+# epoll
 # if you wish to compile an rpm without epoll...
 # rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without epoll
 %{?_without_epoll:%global _without_epoll --disable-epoll}
 
+# fusermount
 # if you wish to compile an rpm without fusermount...
 # rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without fusermount
 %{?_without_fusermount:%global _without_fusermount --disable-fusermount}
 
+# geo-rep
 # if you wish to compile an rpm without geo-replication support, compile like this...
 # rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without georeplication
 %{?_without_georeplication:%global _without_georeplication --disable-georeplication}
 
-# Disable geo-replication on EL5, as its default Python is too old
-%if ( 0%{?rhel} && 0%{?rhel} < 6 )
-%global _without_georeplication --disable-georeplication
-%endif
-
+# gnfs
 # if you wish to compile an rpm with the legacy gNFS server xlator
 # rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with gnfs
 %{?_with_gnfs:%global _with_gnfs --enable-gnfs}
 
+# ipv6default
+# if you wish to compile an rpm with IPv6 default...
+# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with ipv6default
+%{?_with_ipv6default:%global _with_ipv6default --with-ipv6-default}
+
+# libtirpc
+# if you wish to compile an rpm without TIRPC (i.e. use legacy glibc rpc)
+# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without libtirpc
+%{?_without_libtirpc:%global _without_libtirpc --without-libtirpc}
+
+# Do not use libtirpc on EL6, it does not have xdr_uint64_t() and xdr_uint32_t
+# Do not use libtirpc on EL7, it does not have xdr_sizeof()
+%if ( 0%{?rhel} && 0%{?rhel} <= 7 )
+%global _without_libtirpc --without-libtirpc
+%endif
+
+
+# ocf
 # if you wish to compile an rpm without the OCF resource agents...
 # rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without ocf
 %{?_without_ocf:%global _without_ocf --without-ocf}
 
+# server
+# if you wish to build rpms without server components, compile like this
+# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without server
+%{?_without_server:%global _without_server --without-server}
+
+# disable server components forcefully as rhel <= 6
+%if ( 0%{?rhel} && 0%{?rhel} <= 6 )
+%global _without_server --without-server
+%endif
+
+# syslog
 # if you wish to build rpms without syslog logging, compile like this
 # rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without syslog
 %{?_without_syslog:%global _without_syslog --disable-syslog}
@@ -67,24 +93,25 @@
 %global _without_syslog --disable-syslog
 %endif
 
-# if you wish to compile an rpm without the BD map support...
-# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --without bd
-%{?_without_bd:%global _without_bd --disable-bd-xlator}
+# tsan
+# if you wish to compile an rpm with thread sanitizer...
+# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with tsan
+%{?_with_tsan:%global _with_tsan --enable-tsan}
 
-%if ( 0%{?rhel} && 0%{?rhel} < 6 || 0%{?sles_version} )
-%global _without_bd --disable-bd-xlator
+%if ( 0%{?rhel} && 0%{?rhel} < 7 )
+%global _with_tsan %{nil}
 %endif
 
-# Disable data-tiering on EL5, sqlite is too old
-%if ( 0%{?rhel} && 0%{?rhel} < 6 )
-%global _without_tiering --disable-tiering
-%endif
+# valgrind
+# if you wish to compile an rpm to run all processes under valgrind...
+# rpmbuild -ta @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz --with valgrind
+%{?_with_valgrind:%global _with_valgrind --enable-valgrind}
 
 ##-----------------------------------------------------------------------------
 ## All %%global definitions should be placed here and keep them sorted
 ##
 
-%if ( 0%{?fedora} && 0%{?fedora} > 16 ) || ( 0%{?rhel} && 0%{?rhel} > 6 )
+%if ( 0%{?fedora} ) || ( 0%{?rhel} && 0%{?rhel} > 6 )
 %global _with_systemd true
 %endif
 
@@ -98,56 +125,62 @@
 %global _with_tmpfilesdir --without-tmpfilesdir
 %endif
 
-# Eventing
-%if ( 0%{?rhel} && 0%{?rhel} < 6 )
+# without server should also disable some server-only components
+%if 0%{?_without_server:1}
 %global _without_events --disable-events
+%global _without_georeplication --disable-georeplication
+%global _with_gnfs %{nil}
+%global _without_ocf --without-ocf
+%endif
+
+%if ( 0%{?fedora} ) || ( 0%{?rhel} && 0%{?rhel} > 7 )
+%global _usepython3 1
+%global _pythonver 3
+%else
+%global _usepython3 0
+%global _pythonver 2
 %endif
 
 # From https://fedoraproject.org/wiki/Packaging:Python#Macros
 %if ( 0%{?rhel} && 0%{?rhel} <= 6 )
 %{!?python2_sitelib: %global python2_sitelib %(python2 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 %{!?python2_sitearch: %global python2_sitearch %(python2 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
+%global _rundir %{_localstatedir}/run
 %endif
 
 %if ( 0%{?_with_systemd:1} )
-%global _init_enable()  /bin/systemctl enable %1.service ;
-%global _init_disable() /bin/systemctl disable %1.service ;
-%global _init_restart() /bin/systemctl try-restart %1.service ;
-%global _init_start()   /bin/systemctl start %1.service ;
-%global _init_stop()    /bin/systemctl stop %1.service ;
-%global _init_install() install -D -p -m 0644 %1 %{buildroot}%{_unitdir}/%2.service ;
+%global service_start()   /bin/systemctl --quiet start %1.service || : \
+%{nil}
+%global service_stop()    /bin/systemctl --quiet stop %1.service || :\
+%{nil}
+%global service_install() install -D -p -m 0644 %1.service %{buildroot}%2 \
+%{nil}
 # can't seem to make a generic macro that works
-%global _init_glusterd   %{_unitdir}/glusterd.service
-%global _init_glusterfsd %{_unitdir}/glusterfsd.service
-%global _init_glustereventsd %{_unitdir}/glustereventsd.service
-%global _init_glusterfssharedstorage %{_unitdir}/glusterfssharedstorage.service
+%global glusterd_svcfile   %{_unitdir}/glusterd.service
+%global glusterfsd_svcfile %{_unitdir}/glusterfsd.service
+%global glusterta_svcfile %{_unitdir}/gluster-ta-volume.service
+%global glustereventsd_svcfile %{_unitdir}/glustereventsd.service
+%global glusterfssharedstorage_svcfile %{_unitdir}/glusterfssharedstorage.service
 %else
-%global _init_enable()  /sbin/chkconfig --add %1 ;
-%global _init_disable() /sbin/chkconfig --del %1 ;
-%global _init_restart() /sbin/service %1 condrestart &>/dev/null ;
-%global _init_start()   /sbin/service %1 start &>/dev/null ;
-%global _init_stop()    /sbin/service %1 stop &>/dev/null ;
-%global _init_install() install -D -p -m 0755 %1 %{buildroot}%{_sysconfdir}/init.d/%2 ;
+%global systemd_post()  /sbin/chkconfig --add %1 >/dev/null 2>&1 || : \
+%{nil}
+%global systemd_preun() /sbin/chkconfig --del %1 >/dev/null 2>&1 || : \
+%{nil}
+%global systemd_postun_with_restart() /sbin/service %1 condrestart >/dev/null 2>&1 || : \
+%{nil}
+%global service_start()   /sbin/service %1 start >/dev/null 2>&1 || : \
+%{nil}
+%global service_stop()    /sbin/service %1 stop >/dev/null 2>&1 || : \
+%{nil}
+%global service_install() install -D -p -m 0755 %1.init %{buildroot}%2 \
+%{nil}
 # can't seem to make a generic macro that works
-%global _init_glusterd   %{_sysconfdir}/init.d/glusterd
-%global _init_glusterfsd %{_sysconfdir}/init.d/glusterfsd
-%global _init_glustereventsd %{_sysconfdir}/init.d/glustereventsd
-%endif
-
-%if ( 0%{_for_fedora_koji_builds} )
-%if ( 0%{?_with_systemd:1} )
-%global glusterfsd_service glusterfsd.service
-%else
-%global glusterfsd_service glusterfsd.init
-%endif
+%global glusterd_svcfile   %{_sysconfdir}/init.d/glusterd
+%global glusterfsd_svcfile %{_sysconfdir}/init.d/glusterfsd
+%global glustereventsd_svcfile %{_sysconfdir}/init.d/glustereventsd
 %endif
 
 %{!?_pkgdocdir: %global _pkgdocdir %{_docdir}/%{name}-%{version}}
-
-%if ( 0%{?rhel} && 0%{?rhel} < 6 )
-# _sharedstatedir is not provided by RHEL5
-%global _sharedstatedir /var/lib
-%endif
 
 # We do not want to generate useless provides and requires for xlator
 # .so files to be set for glusterfs packages.
@@ -180,13 +213,11 @@ Version:          @PACKAGE_VERSION@
 Release:          0.@PACKAGE_RELEASE@%{?dist}
 %endif
 License:          GPLv2 or LGPLv3+
-Group:            System Environment/Base
-URL:              http://gluster.readthedocs.io/en/latest/
+URL:              http://docs.gluster.org/
 %if ( 0%{_for_fedora_koji_builds} )
 Source0:          http://bits.gluster.org/pub/gluster/glusterfs/src/glusterfs-%{version}%{?prereltag}.tar.gz
 Source1:          glusterd.sysconfig
 Source2:          glusterfsd.sysconfig
-Source6:          rhel5-load-fuse-modules
 Source7:          glusterfsd.service
 Source8:          glusterfsd.init
 %else
@@ -196,9 +227,6 @@ Source0:          @PACKAGE_NAME@-@PACKAGE_VERSION@.tar.gz
 BuildRoot:        %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 Requires(pre):    shadow-utils
-%if ( 0%{?rhel} && 0%{?rhel} <= 5 )
-BuildRequires:    python-simplejson
-%endif
 %if ( 0%{?_with_systemd:1} )
 BuildRequires:    systemd
 %endif
@@ -207,32 +235,34 @@ Requires:         %{name}-libs%{?_isa} = %{version}-%{release}
 %if ( 0%{?_with_systemd:1} )
 %{?systemd_requires}
 %endif
+%if 0%{?_with_asan:1} && !( 0%{?rhel} && 0%{?rhel} < 7 )
+BuildRequires:    libasan
+%endif
+%if 0%{?_with_tsan:1} && !( 0%{?rhel} && 0%{?rhel} < 7 )
+BuildRequires:    libtsan
+%endif
 BuildRequires:    bison flex
 BuildRequires:    gcc make libtool
 BuildRequires:    ncurses-devel readline-devel
 BuildRequires:    libxml2-devel openssl-devel
 BuildRequires:    libaio-devel libacl-devel
-BuildRequires:    python2-devel
-%if ( 0%{?fedora} && 0%{?fedora} < 26 ) || ( 0%{?rhel} )
+BuildRequires:    python%{_pythonver}-devel
+%if ( 0%{?rhel} && 0%{?rhel} < 8 )
 BuildRequires:    python-ctypes
+%endif
+%if ( 0%{?_with_ipv6default:1} ) || ( 0%{!?_without_libtirpc:1} )
+BuildRequires:    libtirpc-devel
+%endif
+%if ( 0%{?fedora} && 0%{?fedora} > 27 ) || ( 0%{?rhel} && 0%{?rhel} > 7 )
+BuildRequires:    rpcgen
 %endif
 BuildRequires:    userspace-rcu-devel >= 0.7
 %if ( 0%{?rhel} && 0%{?rhel} <= 6 )
 BuildRequires:    automake
 %endif
-%if ( 0%{?rhel} && 0%{?rhel} <= 5 )
-BuildRequires:    e2fsprogs-devel
-%else
 BuildRequires:    libuuid-devel
-%endif
 %if ( 0%{?_with_cmocka:1} )
 BuildRequires:    libcmocka-devel >= 1.0.1
-%endif
-%if ( 0%{!?_without_tiering:1} )
-BuildRequires:    sqlite-devel
-%endif
-%if ( 0%{!?_without_bd:1} )
-BuildRequires:    lvm2-devel
 %endif
 %if ( 0%{!?_without_georeplication:1} )
 BuildRequires:    libattr-devel
@@ -242,22 +272,23 @@ BuildRequires:    libattr-devel
 BuildRequires:    firewalld
 %endif
 
-Obsoletes:        hekafs
 Obsoletes:        %{name}-common < %{version}-%{release}
 Obsoletes:        %{name}-core < %{version}-%{release}
-Obsoletes:        %{name}-ufo
 Obsoletes:        %{name}-ganesha
+Obsoletes:        %{name}-rdma < %{version}-%{release}
+%if ( 0%{!?_with_gnfs:1} )
+Obsoletes:        %{name}-gnfs < %{version}-%{release}
+%endif
 Provides:         %{name}-common = %{version}-%{release}
 Provides:         %{name}-core = %{version}-%{release}
 
 %description
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package includes the glusterfs binary, the glusterfsd daemon and the
 libglusterfs and glusterfs translator modules common to both GlusterFS server
@@ -265,99 +296,99 @@ and client framework.
 
 %package api
 Summary:          GlusterFS api library
-Group:            System Environment/Daemons
 Requires:         %{name}%{?_isa} = %{version}-%{release}
 Requires:         %{name}-client-xlators%{?_isa} = %{version}-%{release}
 
 %description api
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the glusterfs libgfapi library.
 
 %package api-devel
 Summary:          Development Libraries
-Group:            Development/Libraries
 Requires:         %{name}%{?_isa} = %{version}-%{release}
 Requires:         %{name}-devel%{?_isa} = %{version}-%{release}
 Requires:         libacl-devel
 
 %description api-devel
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the api include files.
 
 %package cli
 Summary:          GlusterFS CLI
-Group:            Applications/File
 Requires:         %{name}-libs%{?_isa} = %{version}-%{release}
 
 %description cli
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the GlusterFS CLI application and its man page
 
+%package cloudsync-plugins
+Summary:          Cloudsync Plugins
+BuildRequires:    libcurl-devel
+
+%description cloudsync-plugins
+GlusterFS is a distributed file-system capable of scaling to several
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
+
+This package provides cloudsync plugins for archival feature.
+
 %package devel
 Summary:          Development Libraries
-Group:            Development/Libraries
 Requires:         %{name}%{?_isa} = %{version}-%{release}
 # Needed for the Glupy examples to work
 Requires:         %{name}-extra-xlators%{?_isa} = %{version}-%{release}
 
 %description devel
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the development libraries and include files.
 
 %package extra-xlators
 Summary:          Extra Gluster filesystem Translators
-Group:            Applications/File
 # We need python-gluster rpm for gluster module's __init__.py in Python
 # site-packages area
-Requires:         python2-gluster = %{version}-%{release}
-Requires:         python2
-%if ( 0%{?fedora} && 0%{?fedora} < 26 ) || ( 0%{?rhel} )
-BuildRequires:    python-ctypes
-%endif
+Requires:         python%{_pythonver}-gluster = %{version}-%{release}
+Requires:         python%{_pythonver}
 
 %description extra-xlators
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides extra filesystem Translators, such as Glupy,
 for GlusterFS.
 
 %package fuse
 Summary:          Fuse client
-Group:            Applications/File
 BuildRequires:    fuse-devel
 Requires:         attr
 Requires:         psmisc
@@ -370,6 +401,49 @@ Provides:         %{name}-client = %{version}-%{release}
 
 %description fuse
 GlusterFS is a distributed file-system capable of scaling to several
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
+
+This package provides support to FUSE based clients and inlcudes the
+glusterfs(d) binary.
+
+%if ( 0%{!?_without_server:1} )
+%package ganesha
+Summary:          NFS-Ganesha configuration
+Group:            Applications/File
+
+Requires:         %{name}-server%{?_isa} = %{version}-%{release}
+Requires:         nfs-ganesha-selinux >= 2.7.6
+Requires:         nfs-ganesha-gluster >= 2.7.6
+Requires:         pcs >= 0.10.0
+Requires:         resource-agents >= 4.2.0
+Requires:         dbus
+
+%if ( 0%{?rhel} && 0%{?rhel} == 6 )
+Requires:         cman, pacemaker, corosync
+%endif
+
+%if ( 0%{?fedora} ) || ( 0%{?rhel} && 0%{?rhel} > 5 )
+# we need portblock resource-agent in 3.9.5 and later.
+Requires:         net-tools
+%endif
+
+%if ( 0%{?fedora} && 0%{?fedora} > 25  || ( 0%{?rhel} && 0%{?rhel} > 6 ) )
+%if ( 0%{?rhel} && 0%{?rhel} < 8 )
+Requires: selinux-policy >= 3.13.1-160
+Requires(post):   policycoreutils-python
+Requires(postun): policycoreutils-python
+%else
+Requires(post):   policycoreutils-python-utils
+Requires(postun): policycoreutils-python-utils
+%endif
+%endif
+
+%description ganesha
+GlusterFS is a distributed file-system capable of scaling to several
 petabytes. It aggregates various storage bricks over Infiniband RDMA
 or TCP/IP interconnect into one large parallel network file
 system. GlusterFS is one of the most sophisticated file systems in
@@ -377,31 +451,29 @@ terms of features and extensibility.  It borrows a powerful concept
 called Translators from GNU Hurd kernel. Much of the code in GlusterFS
 is in user space and easily manageable.
 
-This package provides support to FUSE based clients and inlcudes the
-glusterfs(d) binary.
+This package provides the configuration and related files for using
+NFS-Ganesha as the NFS server using GlusterFS
+%endif
 
 %if ( 0%{!?_without_georeplication:1} )
 %package geo-replication
 Summary:          GlusterFS Geo-replication
-Group:            Applications/File
 Requires:         %{name}%{?_isa} = %{version}-%{release}
 Requires:         %{name}-server%{?_isa} = %{version}-%{release}
-Requires:         python2
-Requires:         python-prettytable
-%if ( 0%{?fedora} && 0%{?fedora} < 26 ) || ( 0%{?rhel} )
-BuildRequires:    python-ctypes
-%endif
-Requires:         python2-gluster = %{version}-%{release}
+Requires:         python%{_pythonver}
+Requires:         python%{_pythonver}-prettytable
+Requires:         python%{_pythonver}-gluster = %{version}-%{release}
+
 Requires:         rsync
+Requires:         util-linux
 
 %description geo-replication
 GlusterFS is a distributed file-system capable of scaling to several
-peta-bytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file system in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in userspace and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides support to geo-replication.
 %endif
@@ -409,100 +481,64 @@ This package provides support to geo-replication.
 %if ( 0%{?_with_gnfs:1} )
 %package gnfs
 Summary:          GlusterFS gNFS server
-Group:            System Environment/Daemons
 Requires:         %{name}%{?_isa} = %{version}-%{release}
 Requires:         %{name}-client-xlators%{?_isa} = %{version}-%{release}
 Requires:         nfs-utils
 
 %description gnfs
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the glusterfs legacy gNFS server xlator
 %endif
 
 %package libs
 Summary:          GlusterFS common libraries
-Group:            Applications/File
 
 %description libs
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the base GlusterFS libraries
 
-%package -n python-gluster
+%package -n python%{_pythonver}-gluster
 Summary:          GlusterFS python library
-Group:            Development/Tools
-%if ( ! ( 0%{?rhel} && 0%{?rhel} < 6 || 0%{?sles_version} ) )
-# EL5 does not support noarch sub-packages
-BuildArch:        noarch
-%endif
-
-%global _python_gluster_description \
-GlusterFS is a distributed file-system capable of scaling to several\
-petabytes. It aggregates various storage bricks over Infiniband RDMA\
-or TCP/IP interconnect into one large parallel network file\
-system. GlusterFS is one of the most sophisticated file systems in\
-terms of features and extensibility.  It borrows a powerful concept\
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS\
-is in user space and easily manageable.\
-\
-This package contains the python modules of GlusterFS and own gluster\
-namespace.
-
-%description -n python-gluster %{_python_gluster_description}
-
-%package -n python2-gluster
-Summary:          GlusterFS python library
-Group:            Development/Tools
-%{?python_provide:%python_provide python2-gluster}
-Requires:         python2
+Requires:         python%{_pythonver}
+%if ( ! %{_usepython3} )
+%{?python_provide:%python_provide python-gluster}
 Provides:         python-gluster = %{version}-%{release}
 Obsoletes:        python-gluster < 3.10
-
-%description -n python2-gluster %{_python_gluster_description}
-
-%if ( 0%{!?_without_rdma:1} )
-%package rdma
-Summary:          GlusterFS rdma support for ib-verbs
-Group:            Applications/File
-BuildRequires:    libibverbs-devel
-BuildRequires:    librdmacm-devel >= 1.0.15
-Requires:         %{name}%{?_isa} = %{version}-%{release}
-
-%description rdma
-GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
-
-This package provides support to ib-verbs library.
 %endif
+
+%description -n python%{_pythonver}-gluster
+GlusterFS is a distributed file-system capable of scaling to several
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
+
+This package contains the python modules of GlusterFS and own gluster
+namespace.
 
 %package regression-tests
 Summary:          Development Tools
-Group:            Development/Tools
 Requires:         %{name}%{?_isa} = %{version}-%{release}
 Requires:         %{name}-fuse%{?_isa} = %{version}-%{release}
 Requires:         %{name}-server%{?_isa} = %{version}-%{release}
 ## thin provisioning support
 Requires:         lvm2 >= 2.02.89
 Requires:         perl(App::Prove) perl(Test::Harness) gcc util-linux-ng
-Requires:         python2 attr dbench file git libacl-devel net-tools
+Requires:         python%{_pythonver}
+Requires:         attr dbench file git libacl-devel net-tools
 Requires:         nfs-utils xfsprogs yajl psmisc bc
 
 %description regression-tests
@@ -513,16 +549,8 @@ regression testing of Gluster.
 %package resource-agents
 Summary:          OCF Resource Agents for GlusterFS
 License:          GPLv3+
-%if ( ! ( 0%{?rhel} && 0%{?rhel} < 6 || 0%{?sles_version} ) )
-# EL5 does not support noarch sub-packages
 BuildArch:        noarch
-%endif
 # this Group handling comes from the Fedora resource-agents package
-%if ( 0%{?fedora} || 0%{?centos_version} || 0%{?rhel} )
-Group:            System Environment/Base
-%else
-Group:            Productivity/Clustering/HA
-%endif
 # for glusterd
 Requires:         %{name}-server = %{version}-%{release}
 # depending on the distribution, we need pacemaker or resource-agents
@@ -530,21 +558,20 @@ Requires:         %{_prefix}/lib/ocf/resource.d
 
 %description resource-agents
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the resource agents which plug glusterd into
 Open Cluster Framework (OCF) compliant cluster resource managers,
 like Pacemaker.
 %endif
 
+%if ( 0%{!?_without_server:1} )
 %package server
 Summary:          Clustered file-system server
-Group:            System Environment/Daemons
 Requires:         %{name}%{?_isa} = %{version}-%{release}
 Requires:         %{name}-cli%{?_isa} = %{version}-%{release}
 Requires:         %{name}-libs%{?_isa} = %{version}-%{release}
@@ -576,54 +603,64 @@ Requires:         rpcbind
 %else
 Requires:         portmap
 %endif
-%if ( 0%{?rhel} && 0%{?rhel} < 6 )
-Obsoletes:        %{name}-geo-replication = %{version}-%{release}
-%endif
 %if ( 0%{?rhel} && 0%{?rhel} <= 6 )
 Requires:         python-argparse
 %endif
+%if ( 0%{?fedora} && 0%{?fedora} > 27 ) || ( 0%{?rhel} && 0%{?rhel} > 7 )
+Requires:         python%{_pythonver}-pyxattr
+%else
 Requires:         pyxattr
+%endif
 %if (0%{?_with_valgrind:1})
 Requires:         valgrind
 %endif
 
 %description server
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the glusterfs server daemon.
+%endif
+
+%package thin-arbiter
+Summary:          GlusterFS thin-arbiter module
+Requires:         %{name}%{?_isa} = %{version}-%{release}
+Requires:         %{name}-server%{?_isa} = %{version}-%{release}
+
+%description thin-arbiter
+This package provides a tie-breaker functionality to GlusterFS
+replicate volume. It includes translators required to provide the
+functionality, and also few other scripts required for getting the setup done.
+
+This package provides the glusterfs thin-arbiter translator.
 
 %package client-xlators
 Summary:          GlusterFS client-side translators
-Group:            Applications/File
 
 %description client-xlators
 GlusterFS is a distributed file-system capable of scaling to several
-petabytes. It aggregates various storage bricks over Infiniband RDMA
-or TCP/IP interconnect into one large parallel network file
-system. GlusterFS is one of the most sophisticated file systems in
-terms of features and extensibility.  It borrows a powerful concept
-called Translators from GNU Hurd kernel. Much of the code in GlusterFS
-is in user space and easily manageable.
+petabytes. It aggregates various storage bricks over TCP/IP interconnect
+into one large parallel network filesystem. GlusterFS is one of the
+most sophisticated file systems in terms of features and extensibility.
+It borrows a powerful concept called Translators from GNU Hurd kernel.
+Much of the code in GlusterFS is in user space and easily manageable.
 
 This package provides the translators needed on any GlusterFS client.
 
 %if ( 0%{!?_without_events:1} )
 %package events
 Summary:          GlusterFS Events
-Group:            Applications/File
 Requires:         %{name}-server%{?_isa} = %{version}-%{release}
-Requires:         python2 python-prettytable
-Requires:         python2-gluster = %{version}-%{release}
-%if ( 0%{?rhel} )
+Requires:         python%{_pythonver} python%{_pythonver}-prettytable
+Requires:         python%{_pythonver}-gluster = %{version}-%{release}
+%if ( 0%{?rhel} && 0%{?rhel} < 8 )
 Requires:         python-requests
 %else
-Requires:         python2-requests
+Requires:         python%{_pythonver}-requests
 %endif
 %if ( 0%{?rhel} && 0%{?rhel} < 7 )
 Requires:         python-argparse
@@ -639,12 +676,14 @@ GlusterFS Events
 
 %prep
 %setup -q -n %{name}-%{version}%{?prereltag}
+%if ( ! %{_usepython3} )
+echo "fixing python shebangs..."
+for f in api events extras geo-replication libglusterfs tools xlators; do
+find $f -type f -exec sed -i 's|/usr/bin/python3|/usr/bin/python2|' {} \;
+done
+%endif
 
 %build
-%if ( 0%{?rhel} && 0%{?rhel} < 6 )
-CFLAGS=-DUSE_INSECURE_OPENSSL
-export CFLAGS
-%endif
 
 # RHEL6 and earlier need to manually replace config.guess and config.sub
 %if ( 0%{?rhel} && 0%{?rhel} <= 6 )
@@ -652,21 +691,23 @@ export CFLAGS
 %endif
 
 %configure \
+        %{?_with_asan} \
         %{?_with_cmocka} \
         %{?_with_debug} \
         %{?_with_firewalld} \
         %{?_with_gnfs} \
         %{?_with_tmpfilesdir} \
+        %{?_with_tsan} \
         %{?_with_valgrind} \
-        %{?_without_bd} \
         %{?_without_epoll} \
         %{?_without_events} \
         %{?_without_fusermount} \
         %{?_without_georeplication} \
         %{?_without_ocf} \
-        %{?_without_rdma} \
+        %{?_without_server} \
         %{?_without_syslog} \
-        %{?_without_tiering}
+        %{?_with_ipv6default} \
+        %{?_without_libtirpc}
 
 # fix hardening and remove rpath in shlibs
 %if ( 0%{?fedora} && 0%{?fedora} > 17 ) || ( 0%{?rhel} && 0%{?rhel} > 6 )
@@ -683,9 +724,7 @@ make check
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
-# Install include directory
-install -p -m 0644 contrib/uuid/*.h \
-    %{buildroot}%{_includedir}/glusterfs/
+%if ( 0%{!?_without_server:1} )
 %if ( 0%{_for_fedora_koji_builds} )
 install -D -p -m 0644 %{SOURCE1} \
     %{buildroot}%{_sysconfdir}/sysconfig/glusterd
@@ -695,18 +734,12 @@ install -D -p -m 0644 %{SOURCE2} \
 install -D -p -m 0644 extras/glusterd-sysconfig \
     %{buildroot}%{_sysconfdir}/sysconfig/glusterd
 %endif
-
-%if ( 0%{_for_fedora_koji_builds} )
-%if ( 0%{?rhel} && 0%{?rhel} <= 5 )
-install -D -p -m 0755 %{SOURCE6} \
-    %{buildroot}%{_sysconfdir}/sysconfig/modules/glusterfs-fuse.modules
-%endif
 %endif
 
 mkdir -p %{buildroot}%{_localstatedir}/log/glusterd
 mkdir -p %{buildroot}%{_localstatedir}/log/glusterfs
 mkdir -p %{buildroot}%{_localstatedir}/log/glusterfsd
-mkdir -p %{buildroot}%{_localstatedir}/run/gluster
+mkdir -p %{buildroot}%{_rundir}/gluster
 
 # Remove unwanted files from all the shared libraries
 find %{buildroot}%{_libdir} -name '*.a' -delete
@@ -729,32 +762,39 @@ https://forge.gluster.org/glusterfs-core/glusterfs/commits/v%{version}%{?prerelt
 EOM
 
 # Remove benchmarking and other unpackaged files
-%if ( 0%{?rhel} && 0%{?rhel} < 6 )
-rm -rf %{buildroot}/benchmarking
-rm -f %{buildroot}/glusterfs-mode.el
-rm -f %{buildroot}/glusterfs.vim
-%else
 # make install always puts these in %%{_defaultdocdir}/%%{name} so don't
 # use %%{_pkgdocdir}; that will be wrong on later Fedora distributions
 rm -rf %{buildroot}%{_defaultdocdir}/%{name}/benchmarking
 rm -f %{buildroot}%{_defaultdocdir}/%{name}/glusterfs-mode.el
 rm -f %{buildroot}%{_defaultdocdir}/%{name}/glusterfs.vim
-%endif
 
+%if ( 0%{!?_without_server:1} )
 # Create working directory
 mkdir -p %{buildroot}%{_sharedstatedir}/glusterd
 
 # Update configuration file to /var/lib working directory
 sed -i 's|option working-directory /etc/glusterd|option working-directory %{_sharedstatedir}/glusterd|g' \
     %{buildroot}%{_sysconfdir}/glusterfs/glusterd.vol
+%endif
 
 # Install glusterfsd .service or init.d file
+%if ( 0%{!?_without_server:1} )
 %if ( 0%{_for_fedora_koji_builds} )
-%_init_install %{glusterfsd_service} glusterfsd
+%service_install glusterfsd %{glusterfsd_svcfile}
+%endif
 %endif
 
 install -D -p -m 0644 extras/glusterfs-logrotate \
     %{buildroot}%{_sysconfdir}/logrotate.d/glusterfs
+
+# ganesha ghosts
+%if ( 0%{!?_without_server:1} )
+mkdir -p %{buildroot}%{_sysconfdir}/ganesha
+touch %{buildroot}%{_sysconfdir}/ganesha/ganesha-ha.conf
+mkdir -p %{buildroot}%{_localstatedir}/run/gluster/shared_storage/nfs-ganesha/
+touch %{buildroot}%{_localstatedir}/run/gluster/shared_storage/nfs-ganesha/ganesha.conf
+touch %{buildroot}%{_localstatedir}/run/gluster/shared_storage/nfs-ganesha/ganesha-ha.conf
+%endif
 
 %if ( 0%{!?_without_georeplication:1} )
 # geo-rep ghosts
@@ -764,6 +804,7 @@ install -D -p -m 0644 extras/glusterfs-georep-logrotate \
     %{buildroot}%{_sysconfdir}/logrotate.d/glusterfs-georep
 %endif
 
+%if ( 0%{!?_without_server:1} )
 # the rest of the ghosts
 touch %{buildroot}%{_sharedstatedir}/glusterd/glusterd.info
 touch %{buildroot}%{_sharedstatedir}/glusterd/options
@@ -782,6 +823,7 @@ mkdir -p %{buildroot}%{_sharedstatedir}/glusterd/snaps
 mkdir -p %{buildroot}%{_sharedstatedir}/glusterd/ss_brick
 touch %{buildroot}%{_sharedstatedir}/glusterd/nfs/nfs-server.vol
 touch %{buildroot}%{_sharedstatedir}/glusterd/nfs/run/nfs.pid
+%endif
 
 find ./tests ./run-tests.sh -type f | cpio -pd %{buildroot}%{_prefix}/share/glusterfs
 
@@ -799,7 +841,7 @@ rm -rf %{buildroot}
 /sbin/ldconfig
 %if ( 0%{!?_without_syslog:1} )
 %if ( 0%{?fedora} ) || ( 0%{?rhel} && 0%{?rhel} >= 6 )
-%_init_restart rsyslog
+%systemd_postun_with_restart rsyslog
 %endif
 %endif
 exit 0
@@ -809,19 +851,21 @@ exit 0
 
 %if ( 0%{!?_without_events:1} )
 %post events
-%_init_restart glustereventsd
+%systemd_post glustereventsd
 %endif
 
-%if ( 0%{?rhel} == 5 )
-%post fuse
-modprobe fuse
+%if ( 0%{!?_without_server:1} )
+%if ( 0%{?fedora} && 0%{?fedora} > 25 || ( 0%{?rhel} && 0%{?rhel} > 6 ) )
+%post ganesha
+semanage boolean -m ganesha_use_fusefs --on
 exit 0
+%endif
 %endif
 
 %if ( 0%{!?_without_georeplication:1} )
 %post geo-replication
 if [ $1 -ge 1 ]; then
-    %_init_restart glusterd
+    %systemd_postun_with_restart glusterd
 fi
 exit 0
 %endif
@@ -829,11 +873,12 @@ exit 0
 %post libs
 /sbin/ldconfig
 
+%if ( 0%{!?_without_server:1} )
 %post server
 # Legacy server
-%_init_enable glusterd
+%systemd_post glusterd
 %if ( 0%{_for_fedora_koji_builds} )
-%_init_enable glusterfsd
+%systemd_post glusterfsd
 %endif
 # ".cmd_log_history" is renamed to "cmd_history.log" in GlusterFS-3.7 .
 # While upgrading glusterfs-server package form GlusterFS version <= 3.6 to
@@ -887,28 +932,28 @@ if [ $? -eq 0 ]; then
 
     #Cleaning leftover glusterd socket file which is created by glusterd in
     #rpm_script_t context.
-    rm -rf /var/run/glusterd.socket
+    rm -f %{_rundir}/glusterd.socket
 
     # glusterd _was_ running, we killed it, it exited after *.upgrade=on,
     # so start it again
-    %_init_start glusterd
+    %service_start glusterd
 else
     glusterd --xlator-option *.upgrade=on -N
 
     #Cleaning leftover glusterd socket file which is created by glusterd in
     #rpm_script_t context.
-    rm -rf /var/run/glusterd.socket
+    rm -f %{_rundir}/glusterd.socket
 fi
 exit 0
+%endif
 
 ##-----------------------------------------------------------------------------
 ## All %%pre should be placed here and keep them sorted
 ##
 %pre
 getent group gluster > /dev/null || groupadd -r gluster
-getent passwd gluster > /dev/null || useradd -r -g gluster -d /var/run/gluster -s /sbin/nologin -c "GlusterFS daemons" gluster
+getent passwd gluster > /dev/null || useradd -r -g gluster -d %{_rundir}/gluster -s /sbin/nologin -c "GlusterFS daemons" gluster
 exit 0
-
 
 ##-----------------------------------------------------------------------------
 ## All %%preun should be placed here and keep them sorted
@@ -916,72 +961,107 @@ exit 0
 %if ( 0%{!?_without_events:1} )
 %preun events
 if [ $1 -eq 0 ]; then
-    if [ -f %_init_glustereventsd ]; then
-        %_init_stop glustereventsd
-        %_init_disable glustereventsd
+    if [ -f %glustereventsd_svcfile ]; then
+        %service_stop glustereventsd
+        %systemd_preun glustereventsd
     fi
 fi
 exit 0
 %endif
 
+%if ( 0%{!?_without_server:1} )
 %preun server
 if [ $1 -eq 0 ]; then
-    if [ -f %_init_glusterfsd ]; then
-        %_init_stop glusterfsd
+    if [ -f %glusterfsd_svcfile ]; then
+        %service_stop glusterfsd
     fi
-    %_init_stop glusterd
-    if [ -f %_init_glusterfsd ]; then
-        %_init_disable glusterfsd
+    %service_stop glusterd
+    if [ -f %glusterfsd_svcfile ]; then
+        %systemd_preun glusterfsd
     fi
-    %_init_disable glusterd
+    %systemd_preun glusterd
 fi
 if [ $1 -ge 1 ]; then
-    if [ -f %_init_glusterfsd ]; then
-        %_init_restart glusterfsd
+    if [ -f %glusterfsd_svcfile ]; then
+        %systemd_postun_with_restart glusterfsd
     fi
-    %_init_restart glusterd
+    %systemd_postun_with_restart glusterd
 fi
 exit 0
+%endif
+
+%preun thin-arbiter
+if [ $1 -eq 0 ]; then
+    if [ -f %glusterta_svcfile ]; then
+        %service_stop gluster-ta-volume
+        %systemd_preun gluster-ta-volume
+    fi
+fi
 
 ##-----------------------------------------------------------------------------
 ## All %%postun should be placed here and keep them sorted
 ##
 %postun
-/sbin/ldconfig
 %if ( 0%{!?_without_syslog:1} )
 %if ( 0%{?fedora} ) || ( 0%{?rhel} && 0%{?rhel} >= 6 )
-%_init_restart rsyslog
+%systemd_postun_with_restart rsyslog
 %endif
 %endif
 
-%postun api
-/sbin/ldconfig
-
-%postun libs
-/sbin/ldconfig
-
+%if ( 0%{!?_without_server:1} )
 %postun server
-/sbin/ldconfig
 %if (0%{?_with_firewalld:1})
     %firewalld_reload
 %endif
 exit 0
+%endif
+
+%if ( 0%{!?_without_server:1} )
+%if ( 0%{?fedora} && 0%{?fedora} > 25  || ( 0%{?rhel} && 0%{?rhel} > 6 ) )
+%postun ganesha
+semanage boolean -m ganesha_use_fusefs --off
+exit 0
+%endif
+%endif
+
+##-----------------------------------------------------------------------------
+## All %%trigger should be placed here and keep them sorted
+##
+%if ( 0%{!?_without_server:1} )
+%if ( 0%{?fedora} && 0%{?fedora} > 25  || ( 0%{?rhel} && 0%{?rhel} > 6 ) )
+%trigger ganesha -- selinux-policy-targeted
+semanage boolean -m ganesha_use_fusefs --on
+exit 0
+%endif
+%endif
+
+##-----------------------------------------------------------------------------
+## All %%triggerun should be placed here and keep them sorted
+##
+%if ( 0%{!?_without_server:1} )
+%if ( 0%{?fedora} && 0%{?fedora} > 25  || ( 0%{?rhel} && 0%{?rhel} > 6 ) )
+%triggerun ganesha -- selinux-policy-targeted
+semanage boolean -m ganesha_use_fusefs --off
+exit 0
+%endif
+%endif
 
 ##-----------------------------------------------------------------------------
 ## All %%files should be placed here and keep them grouped
 ##
 %files
-%doc ChangeLog COPYING-GPLV2 COPYING-LGPLV3 INSTALL README.md THANKS
+%doc ChangeLog COPYING-GPLV2 COPYING-LGPLV3 INSTALL README.md THANKS COMMITMENT
 %{_mandir}/man8/*gluster*.8*
+%if ( 0%{!?_without_server:1} )
 %exclude %{_mandir}/man8/gluster.8*
-%dir %{_localstatedir}/log/glusterfs
-%if ( 0%{!?_without_rdma:1} )
-%exclude %{_libdir}/glusterfs/%{version}%{?prereltag}/rpc-transport/rdma*
 %endif
+%dir %{_localstatedir}/log/glusterfs
+%if 0%{?!_without_server:1}
 %dir %{_datadir}/glusterfs
 %dir %{_datadir}/glusterfs/scripts
      %{_datadir}/glusterfs/scripts/post-upgrade-script-for-quota.sh
      %{_datadir}/glusterfs/scripts/pre-upgrade-script-for-quota.sh
+%endif
 # xlators that are needed on the client- and on the server-side
 %dir %{_libdir}/glusterfs
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}
@@ -993,24 +1073,23 @@ exit 0
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/debug
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/debug/error-gen.so
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/debug/delay-gen.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/debug/io-stats.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/debug/sink.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/debug/trace.so
-%if ( ! ( 0%{?rhel} && 0%{?rhel} < 6 ) )
-# RHEL-5 based distributions have a too old openssl
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/encryption
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/encryption/crypt.so
-%endif
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/access-control.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/barrier.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/cdc.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/changelog.so
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/utime.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/gfid-access.so
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/namespace.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/read-only.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/shard.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/snapview-client.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/worm.so
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/cloudsync.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/meta.so
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/performance
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/performance/io-cache.so
@@ -1025,11 +1104,16 @@ exit 0
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/performance/nl-cache.so
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/system
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/system/posix-acl.so
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental/fdl.so
-%dir %attr(0775,gluster,gluster) %{_localstatedir}/run/gluster
-%if 0%{?_tmpfilesdir:1}
+%dir %attr(0775,gluster,gluster) %{_rundir}/gluster
+%if 0%{?_tmpfilesdir:1} && 0%{!?_without_server:1}
 %{_tmpfilesdir}/gluster.conf
+%endif
+
+%if ( 0%{?_without_server:1} )
+#exclude ganesha related files
+%exclude %{_sysconfdir}/ganesha/ganesha-ha.conf.sample
+%exclude %{_libexecdir}/ganesha/*
+%exclude %{_prefix}/lib/ocf/resource.d/heartbeat/*
 %endif
 
 %files api
@@ -1052,23 +1136,18 @@ exit 0
 %{_mandir}/man8/gluster.8*
 %{_sysconfdir}/bash_completion.d/gluster
 
+%files cloudsync-plugins
+%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/cloudsync-plugins
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/cloudsync-plugins/cloudsyncs3.so
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/cloudsync-plugins/cloudsynccvlt.so
+
 %files devel
 %dir %{_includedir}/glusterfs
      %{_includedir}/glusterfs/*
 %exclude %{_includedir}/glusterfs/api
 %exclude %{_libdir}/libgfapi.so
 %{_libdir}/*.so
-# Glupy Translator examples
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/glupy
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/glupy/debug-trace.*
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/glupy/helloworld.*
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/glupy/negative.*
 %{_libdir}/pkgconfig/libgfchangelog.pc
-%if ( 0%{!?_without_tiering:1} )
-%{_libdir}/pkgconfig/libgfdb.pc
-%endif
 
 %files client-xlators
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator
@@ -1076,25 +1155,13 @@ exit 0
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/cluster/*.so
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/protocol
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/protocol/client.so
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental/dht2c.so
 
 %files extra-xlators
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/encryption
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/encryption/rot-13.so
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/glupy.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/quiesce.so
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/testing
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/testing/features
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/testing/features/template.so
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/testing/performance
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/testing/performance/symlink-cache.so
-# Glupy Python files
-%dir %{python2_sitelib}/gluster
-%dir %{python2_sitelib}/gluster/glupy
-     %{python2_sitelib}/gluster/glupy/*
+%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/playground
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/playground/template.so
 
 %files fuse
 # glusterfs is a symlink to glusterfsd, -server depends on -fuse.
@@ -1108,13 +1175,8 @@ exit 0
 %if ( 0%{!?_without_fusermount:1} )
 %{_bindir}/fusermount-glusterfs
 %endif
-%if ( 0%{_for_fedora_koji_builds} )
-%if ( 0%{?rhel} && 0%{?rhel} <= 5 )
-%{_sysconfdir}/sysconfig/modules/glusterfs-fuse.modules
-%endif
-%endif
 
-%if ( 0%{?_with_gnfs:1} )
+%if ( 0%{?_with_gnfs:1} && 0%{!?_without_server:1} )
 %files gnfs
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/nfs
@@ -1123,6 +1185,18 @@ exit 0
 %ghost      %attr(0600,-,-) %{_sharedstatedir}/glusterd/nfs/nfs-server.vol
 %ghost %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/nfs/run
 %ghost      %attr(0600,-,-) %{_sharedstatedir}/glusterd/nfs/run/nfs.pid
+%endif
+
+%files thin-arbiter
+%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator
+%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/thin-arbiter.so
+%dir %{_datadir}/glusterfs/scripts
+     %{_datadir}/glusterfs/scripts/setup-thin-arbiter.sh
+%config %{_sysconfdir}/glusterfs/thin-arbiter.vol
+
+%if ( 0%{?_with_systemd:1} )
+%{_unitdir}/gluster-ta-volume.service
 %endif
 
 %if ( 0%{!?_without_georeplication:1} )
@@ -1136,6 +1210,13 @@ exit 0
 %dir %{_libexecdir}/glusterfs/python/syncdaemon
      %{_libexecdir}/glusterfs/gsyncd
      %{_libexecdir}/glusterfs/python/syncdaemon/*
+%dir %{_libexecdir}/glusterfs/scripts
+     %{_libexecdir}/glusterfs/scripts/get-gfid.sh
+     %{_libexecdir}/glusterfs/scripts/slave-upgrade.sh
+     %{_libexecdir}/glusterfs/scripts/gsync-upgrade.sh
+     %{_libexecdir}/glusterfs/scripts/generate-gfid-file.sh
+     %{_libexecdir}/glusterfs/scripts/gsync-sync-gfid
+     %{_libexecdir}/glusterfs/scripts/schedule_georep.py*
      %{_libexecdir}/glusterfs/gverify.sh
      %{_libexecdir}/glusterfs/set_geo_rep_pem_keys.sh
      %{_libexecdir}/glusterfs/peer_gsec_create
@@ -1152,35 +1233,24 @@ exit 0
             %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/gsync-create/post/S56glusterd-geo-rep-create-post.sh
 %ghost %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/gsync-create/pre
 
-%dir %{_datadir}/glusterfs
-%dir %{_datadir}/glusterfs/scripts
-     %{_datadir}/glusterfs/scripts/get-gfid.sh
-     %{_datadir}/glusterfs/scripts/slave-upgrade.sh
-     %{_datadir}/glusterfs/scripts/gsync-upgrade.sh
-     %{_datadir}/glusterfs/scripts/generate-gfid-file.sh
-     %{_datadir}/glusterfs/scripts/gsync-sync-gfid
-     %{_datadir}/glusterfs/scripts/schedule_georep.py*
 %endif
 
 %files libs
 %{_libdir}/*.so.*
 %exclude %{_libdir}/libgfapi.*
-%if ( 0%{!?_without_tiering:1} )
-# libgfdb is only needed server-side
-%exclude %{_libdir}/libgfdb.*
-%endif
 
-%files -n python2-gluster
+%files -n python%{_pythonver}-gluster
 # introducing glusterfs module in site packages.
 # so that all other gluster submodules can reside in the same namespace.
+%if ( %{_usepython3} )
+%dir %{python3_sitelib}/gluster
+     %{python3_sitelib}/gluster/__init__.*
+     %{python3_sitelib}/gluster/__pycache__
+     %{python3_sitelib}/gluster/cliutils
+%else
 %dir %{python2_sitelib}/gluster
      %{python2_sitelib}/gluster/__init__.*
      %{python2_sitelib}/gluster/cliutils
-
-%if ( 0%{!?_without_rdma:1} )
-%files rdma
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/rpc-transport
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/rpc-transport/rdma*
 %endif
 
 %files regression-tests
@@ -1189,16 +1259,31 @@ exit 0
      %{_datadir}/glusterfs/tests
 %exclude %{_datadir}/glusterfs/tests/vagrant
 
+%if ( 0%{!?_without_server:1} )
+%files ganesha
+%dir %{_libexecdir}/ganesha
+%{_sysconfdir}/ganesha/ganesha-ha.conf.sample
+%{_libexecdir}/ganesha/*
+%{_prefix}/lib/ocf/resource.d/heartbeat/*
+%{_sharedstatedir}/glusterd/hooks/1/start/post/S31ganesha-start.sh
+%ghost      %attr(0644,-,-) %config(noreplace) %{_sysconfdir}/ganesha/ganesha-ha.conf
+%ghost %dir %attr(0755,-,-) %{_localstatedir}/run/gluster/shared_storage/nfs-ganesha
+%ghost      %attr(0644,-,-) %config(noreplace) %{_localstatedir}/run/gluster/shared_storage/nfs-ganesha/ganesha.conf
+%ghost      %attr(0644,-,-) %config(noreplace) %{_localstatedir}/run/gluster/shared_storage/nfs-ganesha/ganesha-ha.conf
+%endif
+
 %if ( 0%{!?_without_ocf:1} )
 %files resource-agents
 # /usr/lib is the standard for OCF, also on x86_64
 %{_prefix}/lib/ocf/resource.d/glusterfs
 %endif
 
+%if ( 0%{!?_without_server:1} )
 %files server
 %doc extras/clear_xattrs.sh
 # sysconf
 %config(noreplace) %{_sysconfdir}/glusterfs
+%exclude %{_sysconfdir}/glusterfs/thin-arbiter.vol
 %exclude %{_sysconfdir}/glusterfs/eventsconfig.json
 %exclude %{_sharedstatedir}/glusterd/nfs/nfs-server.vol
 %exclude %{_sharedstatedir}/glusterd/nfs/run/nfs.pid
@@ -1211,33 +1296,33 @@ exit 0
 %endif
 
 # init files
-%_init_glusterd
+%glusterd_svcfile
 %if ( 0%{_for_fedora_koji_builds} )
-%_init_glusterfsd
+%glusterfsd_svcfile
 %endif
 %if ( 0%{?_with_systemd:1} )
-%_init_glusterfssharedstorage
+%glusterfssharedstorage_svcfile
 %endif
 
 # binaries
 %{_sbindir}/glusterd
-%{_sbindir}/glfsheal
+%{_libexecdir}/glusterfs/glfsheal
 %{_sbindir}/gf_attach
+%{_sbindir}/gluster-setgfid2path
 # {_sbindir}/glusterfsd is the actual binary, but glusterfs (client) is a
 # symlink. The binary itself (and symlink) are part of the glusterfs-fuse
 # package, because glusterfs-server depends on that anyway.
 
+# Manpages
+%{_mandir}/man8/gluster-setgfid2path.8*
+
 # xlators
-     %{_libdir}/libposix2common.so
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/arbiter.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/bit-rot.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/bitrot-stub.so
-%if ( 0%{!?_without_tiering:1} )
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/changetimerecorder.so
-     %{_libdir}/libgfdb.so.*
-%endif
+     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/sdfs.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/index.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/locks.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/features/posix*
@@ -1253,16 +1338,7 @@ exit 0
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/protocol
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/protocol/server.so
 %dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/storage
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/storage/bd.so
      %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/storage/posix.so
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/performance
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/performance/decompounder.so
-%dir %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental/jbrc.so
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental/jbr.so
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental/dht2s.so
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental/posix2-ds.so
-     %{_libdir}/glusterfs/%{version}%{?prereltag}/xlator/experimental/posix2-mds.so
 
 # snap_scheduler
 %{_sbindir}/snap_scheduler.py
@@ -1278,6 +1354,9 @@ exit 0
             %attr(0644,-,-) %{_sharedstatedir}/glusterd/groups/metadata-cache
             %attr(0644,-,-) %{_sharedstatedir}/glusterd/groups/gluster-block
             %attr(0644,-,-) %{_sharedstatedir}/glusterd/groups/nl-cache
+            %attr(0644,-,-) %{_sharedstatedir}/glusterd/groups/db-workload
+            %attr(0644,-,-) %{_sharedstatedir}/glusterd/groups/distributed-virt
+            %attr(0644,-,-) %{_sharedstatedir}/glusterd/groups/samba
        %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/glusterfind
        %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/glusterfind/.keys
 %ghost %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/glustershd
@@ -1286,8 +1365,10 @@ exit 0
        %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/add-brick
        %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/add-brick/post
             %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/add-brick/post/disabled-quota-root-xattr-heal.sh
-            %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/add-brick/pre/S28Quota-enable-root-xattr-heal.sh
+            %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/add-brick/post/S10selinux-label-brick.sh
+            %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/add-brick/post/S13create-subdir-mounts.sh
        %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/add-brick/pre
+            %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/add-brick/pre/S28Quota-enable-root-xattr-heal.sh
        %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/create
        %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/create/post
             %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/create/post/S10selinux-label-brick.sh
@@ -1321,7 +1402,7 @@ exit 0
        %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/stop/pre
             %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/stop/pre/S30samba-stop.sh
             %attr(0755,-,-) %{_sharedstatedir}/glusterd/hooks/1/stop/pre/S29CTDB-teardown.sh
-%ghost      %attr(0600,-,-) %{_sharedstatedir}/glusterd/options
+%config(noreplace) %ghost      %attr(0600,-,-) %{_sharedstatedir}/glusterd/options
 %ghost %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/peers
 %ghost %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/quotad
 %ghost %dir %attr(0755,-,-) %{_sharedstatedir}/glusterd/scrub
@@ -1335,6 +1416,8 @@ exit 0
      %{_datadir}/glusterfs/scripts/stop-all-gluster-processes.sh
 %if ( 0%{?_with_systemd:1} )
      %{_libexecdir}/glusterfs/mount-shared-storage.sh
+     %{_datadir}/glusterfs/scripts/control-cpu-load.sh
+     %{_datadir}/glusterfs/scripts/control-mem.sh
 %endif
 
 # Incrementalapi
@@ -1345,9 +1428,8 @@ exit 0
 %if ( 0%{?_with_firewalld:1} )
 %{_prefix}/lib/firewalld/services/glusterfs.xml
 %endif
-
-%{_sbindir}/gf_logdump
-%{_sbindir}/gf_recon
+# end of server files
+%endif
 
 # Events
 %if ( 0%{!?_without_events:1} )
@@ -1356,7 +1438,7 @@ exit 0
 %dir %{_sharedstatedir}/glusterd
 %dir %{_sharedstatedir}/glusterd/events
 %dir %{_libexecdir}/glusterfs
-     %{_libexecdir}/glusterfs/events
+     %{_libexecdir}/glusterfs/gfevents
      %{_libexecdir}/glusterfs/peer_eventsapi.py*
 %{_sbindir}/glustereventsd
 %{_sbindir}/gluster-eventsapi
@@ -1369,6 +1451,75 @@ exit 0
 %endif
 
 %changelog
+* Wed Oct 9 2019 Kaleb S. KEITHLEY <kkeithle@redhat.com>
+- remove leftover bd xlator cruft
+
+* Fri Aug 23 2019 Shwetha K Acharya <sacharya@redhat.com>
+- removed {name}-ufs from Obsoletes
+- added  "< version" for obsoletes {name}-gnfs and {name}-rdma
+
+* Mon Jul 15 2019 Jiffin Tony Thottan <jthottan@redhat.com>
+- Adding ganesha ha bits back in gluster repository
+
+* Fri Jul 12 2019 Amar Tumballi <amarts@redhat.com>
+- Remove rdma package, and mark older rdma package as 'Obsoletes'
+
+* Fri Jun 14 2019 Niels de Vos <ndevos@redhat.com>
+- always build glusterfs-cli to allow monitoring/managing from clients
+
+* Wed Mar 6 2019 Kaleb S. KEITHLEY <kkeithle@redhat.com>
+- remove unneeded ldconfig in scriptlets
+-  reported by Igor Gnatenko in Fedora
+-   https://src.fedoraproject.org/rpms/glusterfs/pull-request/5
+
+* Mon Mar 4 2019 Kaleb S. KEITHLEY <kkeithle@redhat.com>
+- s390x has RDMA, since around Fedora 27 and in RHEL7 since June 2016.
+
+* Tue Feb 26 2019 Ashish Pandey <aspandey@redhat.com>
+- Add thin-arbiter package
+
+* Sun Feb 24 2019 Aravinda VK <avishwan@redhat.com>
+- Renamed events package to gfevents
+
+* Thu Feb 21 2019 Jiffin Tony Thottan <jthottan@redhat.com>
+- Obsoleting gluster-gnfs package
+
+* Wed Nov 28 2018 Krutika Dhananjay <kdhananj@redhat.com>
+- Install /var/lib/glusterd/groups/distributed-virt by default
+
+* Tue Nov 13 2018 Niels de Vos <ndevos@redhat.com>
+- Add an option to build with ThreadSanitizer (TSAN)
+
+* Fri Sep 7 2018 Niels de Vos <ndevos@redhat.com>
+- Add an option to build with address sanitizer (ASAN)
+
+* Sun Jul 29 2018 Niels de Vos <ndevos@redhat.com>
+- Disable building glusterfs-resource-agents on el6 (#1609551)
+
+* Thu Feb 22 2018 Kotresh HR <khiremat@redhat.com>
+- Added util-linux as dependency to georeplication rpm (#1544382)
+
+* Thu Feb 1 2018 Niels de Vos <ndevos@redhat.com>
+- Add '--without server' option to facilitate el6 builds (#1074947)
+
+* Wed Jan 24 2018 Kaleb S. KEITHLEY <kkeithle@redhat.com>
+- python-ctypes no long exists, now in python stdlib (#1538258)
+
+* Thu Jan 18 2018 Kaleb S. KEITHLEY <kkeithle@redhat.com>
+- Fedora 28 glibc has removed rpc headers and rpcgen, use libtirpc
+
+* Mon Dec 25 2017 Niels de Vos <ndevos@redhat.com>
+- Fedora 28 has renamed pyxattr
+
+* Wed Sep 27 2017 Mohit Agrawal <moagrawa@redhat.com>
+- Added control-cpu-load.sh and control-mem.sh scripts to glusterfs-server section(#1496335)
+
+* Tue Aug 22 2017 Kaleb S. KEITHLEY <kkeithle@redhat.com>
+- libibverbs-devel, librdmacm-devel -> rdma-core-devel #1483995
+
+* Thu Jul 20 2017 Aravinda VK <avishwan@redhat.com>
+- Added new tool/binary to set the gfid2path xattr on files
+
 * Thu Jul 13 2017 Kaleb S. KEITHLEY <kkeithle@redhat.com>
 - various directories not owned by any package
 
@@ -1402,9 +1553,6 @@ exit 0
 
 * Thu Feb 16 2017 Niels de Vos <ndevos@redhat.com>
 - Obsolete and Provide python-gluster for upgrading from glusterfs < 3.10
-
-* Tue Feb 7 2017 Kaleb S. KEITHLEY <kkeithle@redhat.com>
-- remove ganesha (#1418417)
 
 * Wed Feb 1 2017 Poornima G <pgurusid@redhat.com>
 - Install /var/lib/glusterd/groups/metadata-cache by default

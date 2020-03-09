@@ -34,9 +34,9 @@
 #include "fuse_param.h"
 #include "fuse_ioctl.h"
 
-#include "glusterfs.h"
-#include "logging.h"
-#include "common-utils.h"
+#include "glusterfs/glusterfs.h"
+#include "glusterfs/logging.h"
+#include "glusterfs/common-utils.h"
 
 #define GFFUSE_LOGERR(...) \
         gf_log ("glusterfs-fuse", GF_LOG_ERROR, ## __VA_ARGS__)
@@ -94,7 +94,7 @@ gf_fuse_mount (const char *mountpoint, char *fsname, char *mnt_param,
         }
 
         /* sysctlbyname() includes the trailing '\0' in version_len */
-        version_len_desired = strlen("2.x.y") + 1;
+        version_len_desired = sizeof ("2.x.y");
 
         if (version_len != version_len_desired) {
                 gf_log ("glusterfs-fuse", GF_LOG_ERROR,

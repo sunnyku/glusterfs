@@ -15,14 +15,21 @@ function count_processes {
 	pgrep glusterfsd | wc -w
 }
 
+function count_brick_pids {
+        $CLI --xml volume status all | sed -n '/.*<pid>\([^<]*\).*/s//\1/p' \
+                                     | grep -v "N/A" | sort | uniq | wc -l
+}
+
+cleanup
 TEST glusterd
 TEST $CLI volume set all cluster.brick-multiplex yes
-push_trapfunc "$CLI volume set all cluster.brick-multiplex off"
-push_trapfunc "cleanup"
 
 # Create two vanilla volumes.
 TEST $CLI volume create $V0 $H0:$B0/brick-${V0}-{0,1}
 TEST $CLI volume create $V1 $H0:$B0/brick-${V1}-{0,1}
+
+# Enable brick log-level to DEBUG
+gluster v set $V0 diagnostics.brick-log-level DEBUG
 
 # Start both.
 TEST $CLI volume start $V0
@@ -33,6 +40,7 @@ TEST $CLI volume start $V1
 # coming up, and yield a false positive.
 sleep $PROCESS_UP_TIMEOUT
 EXPECT "1" count_processes
+EXPECT 1 count_brick_pids
 
 # Make the second volume incompatible with the first.
 TEST $CLI volume stop $V1
@@ -41,3 +49,5 @@ TEST $CLI volume start $V1
 
 # There should be two processes this time (can't share protocol/server).
 EXPECT_WITHIN $PROCESS_UP_TIMEOUT "2" count_processes
+
+cleanup;

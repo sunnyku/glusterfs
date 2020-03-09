@@ -10,13 +10,14 @@
 
 import os
 import sys
-from ctypes import CDLL, c_int, create_string_buffer
-from ctypes.util import find_library
+from ctypes import CDLL, c_int
+from py2py3 import bytearray_to_str, gr_create_string_buffer
+from py2py3 import gr_query_xattr, gr_lsetxattr, gr_lremovexattr
 
 
 class Xattr(object):
 
-    """singleton that wraps the extended attribues system
+    """singleton that wraps the extended attributes system
        interface for python using ctypes
 
        Just implement it to the degree we need it, in particular
@@ -28,9 +29,9 @@ class Xattr(object):
 
     if sys.hexversion >= 0x02060000:
         from ctypes import DEFAULT_MODE
-        libc = CDLL(find_library("libc"), DEFAULT_MODE, None, True)
+        libc = CDLL("libc.so.6", DEFAULT_MODE, None, True)
     else:
-        libc = CDLL(find_library("libc"))
+        libc = CDLL("libc.so.6")
 
     @classmethod
     def geterrno(cls):
@@ -48,20 +49,23 @@ class Xattr(object):
     @classmethod
     def _query_xattr(cls, path, siz, syscall, *a):
         if siz:
-            buf = create_string_buffer('\0' * siz)
+            buf = gr_create_string_buffer(siz)
         else:
             buf = None
         ret = getattr(cls.libc, syscall)(*((path,) + a + (buf, siz)))
         if ret == -1:
             cls.raise_oserr()
         if siz:
-            return buf.raw[:ret]
+            # py2 and py3 compatibility. Convert bytes array
+            # to string
+            result = bytearray_to_str(buf.raw)
+            return result[:ret]
         else:
             return ret
 
     @classmethod
     def lgetxattr(cls, path, attr, siz=0):
-        return cls._query_xattr(path, siz, 'lgetxattr', attr)
+        return gr_query_xattr(cls, path, siz, 'lgetxattr', attr)
 
     @classmethod
     def lgetxattr_buf(cls, path, attr):
@@ -75,20 +79,21 @@ class Xattr(object):
 
     @classmethod
     def llistxattr(cls, path, siz=0):
-        ret = cls._query_xattr(path, siz, 'llistxattr')
+        ret = gr_query_xattr(cls, path, siz, 'llistxattr')
         if isinstance(ret, str):
-            ret = ret.split('\0')
+            ret = ret.strip('\0')
+            ret = ret.split('\0') if ret else []
         return ret
 
     @classmethod
     def lsetxattr(cls, path, attr, val):
-        ret = cls.libc.lsetxattr(path, attr, val, len(val), 0)
+        ret = gr_lsetxattr(cls, path, attr, val)
         if ret == -1:
             cls.raise_oserr()
 
     @classmethod
     def lremovexattr(cls, path, attr):
-        ret = cls.libc.lremovexattr(path, attr)
+        ret = gr_lremovexattr(cls, path, attr)
         if ret == -1:
             cls.raise_oserr()
 

@@ -10,13 +10,13 @@
 #ifndef __SELINUX_H__
 #define __SELINUX_H__
 
-#include "common-utils.h"
+#include <glusterfs/common-utils.h>
 
 #define SELINUX_XATTR "security.selinux"
 #define SELINUX_GLUSTER_XATTR "trusted.glusterfs.selinux"
 
 struct selinux_priv {
-        gf_boolean_t    selinux_enabled;
+    gf_boolean_t selinux_enabled;
 };
 
 typedef struct selinux_priv selinux_priv_t;

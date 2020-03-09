@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 # Copyright (c) 2015 Red Hat, Inc. <http://www.redhat.com/>
@@ -14,9 +14,13 @@ import sys
 import time
 import xattr
 import logging
+from gfind_py2py3 import bytearray_to_str
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 import hashlib
-import urllib
+try:
+    import urllib.parse as urllib
+except ImportError:
+    import urllib
 import codecs
 
 import libgfchangelog
@@ -47,7 +51,7 @@ def pgfid_to_path(brick, changelog_data):
     """
     # pgfid1 to path1 in case of CREATE/MKNOD/MKDIR/LINK/SYMLINK
     for row in changelog_data.gfidpath_get_distinct("pgfid1", {"path1": ""}):
-        # In case of Data/Metadata only, pgfid1 will not be their
+        # In case of Data/Metadata only, pgfid1 will not be there
         if row[0] == "":
             continue
 
@@ -102,13 +106,53 @@ def populate_pgfid_and_inodegfid(brick, changelog_data):
                 changelog_data.inodegfid_add(os.stat(p).st_ino, gfid)
                 file_xattrs = xattr.list(p)
                 for x in file_xattrs:
-                    if x.startswith("trusted.pgfid."):
+                    x_str = bytearray_to_str(x)
+                    if x_str.startswith("trusted.pgfid."):
                         # PGFID in pgfid table
-                        changelog_data.pgfid_add(x.split(".")[-1])
+                        changelog_data.pgfid_add(x_str.split(".")[-1])
             except (IOError, OSError):
                 # All OS Errors ignored, since failures will be logged
                 # in End. All GFIDs present in gfidpath table
                 continue
+
+
+def enum_hard_links_using_gfid2path(brick, gfid, args):
+    hardlinks = []
+    p = os.path.join(brick, ".glusterfs", gfid[0:2], gfid[2:4], gfid)
+    if not os.path.isdir(p):
+        # we have a symlink or a normal file
+        try:
+            file_xattrs = xattr.list(p)
+            for x in file_xattrs:
+                x_str = bytearray_to_str(x)
+                if x_str.startswith("trusted.gfid2path."):
+                    # get the value for the xattr i.e. <PGFID>/<BN>
+                    v = xattr.getxattr(p, x_str)
+                    v_str = bytearray_to_str(v)
+                    pgfid, bn = v_str.split(os.sep)
+                    try:
+                        path = symlink_gfid_to_path(brick, pgfid)
+                        fullpath = os.path.join(path, bn)
+                        fullpath = output_path_prepare(fullpath, args)
+                        hardlinks.append(fullpath)
+                    except (IOError, OSError) as e:
+                        logger.warn("Error converting to path: %s" % e)
+                        continue
+        except (IOError, OSError):
+            pass
+    return hardlinks
+
+
+def gfid_to_all_paths_using_gfid2path(brick, changelog_data, args):
+    path = ""
+    for row in changelog_data.gfidpath_get({"path1": "", "type": "MODIFY"}):
+        gfid = row[3].strip()
+        logger.debug("Processing gfid %s" % gfid)
+        hardlinks = enum_hard_links_using_gfid2path(brick, gfid, args)
+
+        path = ",".join(hardlinks)
+
+        changelog_data.gfidpath_update({"path1": path}, {"gfid": gfid})
 
 
 def gfid_to_path_using_pgfid(brick, changelog_data, args):
@@ -243,7 +287,7 @@ def get_changes(brick, hash_dir, log_file, start, end, args):
     session_dir = os.path.join(conf.get_opt("session_dir"),
                                args.session)
     status_file = os.path.join(session_dir, args.volume,
-                               "%s.status" % urllib.quote_plus(args.brick))
+                     "%s.status" % urllib.quote_plus(args.brick))
 
     # Get previous session
     try:
@@ -273,6 +317,7 @@ def get_changes(brick, hash_dir, log_file, start, end, args):
         fail("%s: %s Historical Changelogs not available: %s" %
              (args.node, brick, e), logger=logger)
 
+    logger.info("[1/4] Starting changelog parsing ...")
     try:
         # scan followed by getchanges till scan returns zero.
         # history_scan() is blocking call, till it gets the number
@@ -301,18 +346,27 @@ def get_changes(brick, hash_dir, log_file, start, end, args):
         fail("%s Error during Changelog Crawl: %s" % (brick, e),
              logger=logger)
 
+    logger.info("[1/4] Finished changelog parsing.")
+
     # Convert all pgfid available from Changelogs
+    logger.info("[2/4] Starting 'pgfid to path' conversions ...")
     pgfid_to_path(brick, changelog_data)
     changelog_data.commit()
+    logger.info("[2/4] Finished 'pgfid to path' conversions.")
 
-    # Convert all GFIDs for which no other additional details available
-    gfid_to_path_using_pgfid(brick, changelog_data, args)
+    # Convert all gfids recorded for data and metadata to all hardlink paths
+    logger.info("[3/4] Starting 'gfid2path' conversions ...")
+    gfid_to_all_paths_using_gfid2path(brick, changelog_data, args)
     changelog_data.commit()
+    logger.info("[3/4] Finished 'gfid2path' conversions.")
 
     # If some GFIDs fail to get converted from previous step,
     # convert using find
+    logger.info("[4/4] Starting 'gfid to path using batchfind' "
+                "conversions ...")
     gfid_to_path_using_batchfind(brick, changelog_data)
     changelog_data.commit()
+    logger.info("[4/4] Finished 'gfid to path using batchfind' conversions.")
 
     return actual_end
 
@@ -326,7 +380,7 @@ def changelog_crawl(brick, start, end, args):
 
     # WORKING_DIR/BRICKHASH/OUTFILE
     working_dir = os.path.dirname(args.outfile)
-    brickhash = hashlib.sha1(brick)
+    brickhash = hashlib.sha1(brick.encode())
     brickhash = str(brickhash.hexdigest())
     working_dir = os.path.join(working_dir, brickhash)
 
@@ -361,6 +415,7 @@ def _get_args():
                         action="store_true")
     parser.add_argument("--output-prefix", help="File prefix in output",
                         default=".")
+    parser.add_argument("--type",default="both")
     parser.add_argument("-N", "--only-namespace-changes",
                         help="List only namespace changes",
                         action="store_true")
@@ -380,7 +435,7 @@ if __name__ == "__main__":
 
     session_dir = os.path.join(conf.get_opt("session_dir"), args.session)
     status_file = os.path.join(session_dir, args.volume,
-                               "%s.status" % urllib.quote_plus(args.brick))
+                     "%s.status" % urllib.quote_plus(args.brick))
     status_file_pre = status_file + ".pre"
     mkdirp(os.path.join(session_dir, args.volume), exit_on_err=True,
            logger=logger)
@@ -406,7 +461,7 @@ if __name__ == "__main__":
                                                                     end))
     actual_end = changelog_crawl(args.brick, start, end, args)
     if not args.only_query:
-        with open(status_file_pre, "w", buffering=0) as f:
+        with open(status_file_pre, "w") as f:
             f.write(str(actual_end))
 
     logger.info("%s Finished Changelog Crawl - End: %s" % (args.brick,

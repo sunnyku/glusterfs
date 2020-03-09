@@ -11,20 +11,19 @@
 #ifndef __EC_MEM_TYPES_H__
 #define __EC_MEM_TYPES_H__
 
-#include "mem-types.h"
+#include <glusterfs/mem-types.h>
 
-enum gf_ec_mem_types_
-{
+enum gf_ec_mem_types_ {
     ec_mt_ec_t = gf_common_mt_end + 1,
     ec_mt_xlator_t,
     ec_mt_ec_inode_t,
     ec_mt_ec_fd_t,
-    ec_mt_ec_heal_t,
     ec_mt_subvol_healer_t,
     ec_mt_ec_gf_t,
     ec_mt_ec_code_t,
     ec_mt_ec_code_builder_t,
     ec_mt_ec_matrix_t,
+    ec_mt_ec_stripe_t,
     ec_mt_end
 };
 

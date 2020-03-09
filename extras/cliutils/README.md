@@ -81,7 +81,7 @@ to address the following issues
 Create a file in `$LIBEXEC/glusterfs/peer_message.py` with following
 content.
 
-    #!/usr/bin/env python
+    #!/usr/bin/python3
     from gluster.cliutils import Cmd, runcli, execute_in_peers, node_output_ok
 
     class NodeHello(Cmd):
@@ -149,7 +149,7 @@ Now users can use `gluster-message` instead of calling
 Following example uses prettytable library, which can be installed
 using `pip install prettytable` or `dnf install python-prettytable`
 
-    #!/usr/bin/env python
+    #!/usr/bin/python3
     from prettytable import PrettyTable
     from gluster.cliutils import Cmd, runcli, execute_in_peers, node_output_ok
 
@@ -221,7 +221,7 @@ required.(Under `%files` section)
 - gluster-mountbroker   http://review.gluster.org/14544
 - gluster-eventsapi     http://review.gluster.org/14248
 - gluster-georep-sshkey http://review.gluster.org/14732
-- gluster-restapi       https://github.com/aravindavk/glusterfs-restapi
+- gluster-restapi       https://github.com/gluster/restapi
 
 ## Limitations/TODOs
 - Not yet possible to create CLI without any subcommand, For example

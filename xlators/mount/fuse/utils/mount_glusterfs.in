@@ -234,9 +234,11 @@ start_glusterfs ()
         cmd_line=$(echo "$cmd_line --xlator-option=$xlator_option");
     fi
 
-    # for rdma volume, we have to fetch volfile with '.rdma' added
-    # to volume name, so that it fetches the right client vol file
-    volume_id_rdma="";
+    if [ -n "$process_name" ]; then
+        cmd_line=$(echo "$cmd_line --process-name fuse.$process_name");
+    else
+        cmd_line=$(echo "$cmd_line --process-name fuse");
+    fi
 
     if [ -z "$volfile_loc" ]; then
         if  [ -n "$server_ip" ]; then
@@ -276,15 +278,9 @@ start_glusterfs ()
 
             if [ -n "$transport" ]; then
                 cmd_line=$(echo "$cmd_line --volfile-server-transport=$transport");
-                if [ "$transport" = "rdma" ]; then
-                    volume_id_rdma=".rdma";
-                fi
             fi
 
             if [ -n "$volume_id" ]; then
-                if [ -n "$volume_id_rdma" ]; then
-                    volume_id="$volume_id$volume_id_rdma";
-                fi
                 cmd_line=$(echo "$cmd_line --volfile-id=$volume_id");
             fi
         fi
@@ -398,6 +394,9 @@ with_options()
                 [ $value = "false" ] ; then
                 no_root_squash=1;
             fi ;;
+        "process-name")
+            process_name=$value
+            ;;
         *)
             warn "Invalid option: $key"
             exit 1

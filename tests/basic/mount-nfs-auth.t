@@ -3,6 +3,8 @@
 . $(dirname $0)/../include.rc
 . $(dirname $0)/../nfs.rc
 
+#G_TESTDEF_TEST_STATUS_CENTOS6=NFS_TEST
+
 # Our mount timeout must be as long as the time for a regular configuration
 # change to be acted upon *plus* AUTH_REFRESH_TIMEOUT, not one replacing the
 # other.  Otherwise this process races vs. the one making the change we're
@@ -41,7 +43,7 @@ function build_dirs () {
 }
 
 function export_allow_this_host_ipv6 () {
-        printf "$EXPORT_ALLOW6\n" > /var/lib/glusterd/nfs/exports
+        printf "$EXPORT_ALLOW6\n" > "$GLUSTERD_WORKDIR"/nfs/exports
 }
 
 function export_allow_this_host () {
@@ -139,7 +141,7 @@ function stat_nfs () {
 
 # Restarts the NFS server
 function restart_nfs () {
-        local NFS_PID=$(cat ${GLUSTERD_WORKDIR}/nfs/run/nfs.pid)
+        local NFS_PID=$(cat $GLUSTERD_PIDFILEDIR/nfs/nfs.pid)
 
         # kill the NFS-server if it is running
         while ps -q ${NFS_PID} 2>&1 > /dev/null; do

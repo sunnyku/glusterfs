@@ -9,10 +9,14 @@ CTDB_MNT=/gluster/lock
 # Make sure ping-timeout is not default for CTDB volume
 PING_TIMEOUT_SECS=10
 PROGNAME="ctdb"
-OPTSPEC="volname:"
+OPTSPEC="volname:,gd-workdir:,version:,volume-op:,first:"
 HOSTNAME=`hostname`
 MNTOPTS="_netdev,transport=tcp,xlator-option=*client*.ping-timeout=${PING_TIMEOUT_SECS}"
 VOL=
+GLUSTERD_WORKDIR=
+VERSION=
+VOLUME_OP=
+FIRST=
 # $META is the volume that will be used by CTDB as a shared filesystem.
 # It is not desirable to use this volume for storing 'data' as well.
 # META is set to 'all' (viz. a keyword and hence not a legal volume name)
@@ -21,7 +25,7 @@ VOL=
 META="all"
 
 function parse_args () {
-        ARGS=$(getopt -l $OPTSPEC  -name $PROGNAME $@)
+        ARGS=$(getopt -o '' -l $OPTSPEC -n $PROGNAME -- "$@")
         eval set -- "$ARGS"
 
         while true; do
@@ -29,13 +33,27 @@ function parse_args () {
                 --volname)
                     shift
                     VOL=$1
-                ;;
-
+                    ;;
+                --gd-workdir)
+                    shift
+                    GLUSTERD_WORKDIR=$1
+                    ;;
+                --version)
+                    shift
+                    VERSION=$1
+                    ;;
+                --volume-op)
+                    shift
+                    VOLUME_OP=$1
+                    ;;
+                --first)
+                    shift
+                    FIRST=$1
+                    ;;
                 *)
-                     shift
-                     break
-                ;;
-
+                    shift
+                    break
+                    ;;
             esac
 
             shift
@@ -55,7 +73,7 @@ function add_fstab_entry () {
         fi
 }
 
-parse_args $@
+parse_args "$@"
 if [ "$META" = "$VOL" ]
 then
         mkdir -p $CTDB_MNT

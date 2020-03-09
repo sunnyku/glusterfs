@@ -11,16 +11,15 @@
 #ifndef __SNAP_VIEW_MEM_TYPES_H
 #define __SNAP_VIEW_MEM_TYPES_H
 
-#include "mem-types.h"
+#include <glusterfs/mem-types.h>
 
 enum snapview_mem_types {
-        gf_svs_mt_priv_t = gf_common_mt_end + 1,
-        gf_svs_mt_svs_inode_t,
-        gf_svs_mt_dirents_t,
-        gf_svs_mt_svs_fd_t,
-        gf_svs_mt_snaplist_t,
-        gf_svs_mt_end
+    gf_svs_mt_priv_t = gf_common_mt_end + 1,
+    gf_svs_mt_svs_inode_t,
+    gf_svs_mt_dirents_t,
+    gf_svs_mt_svs_fd_t,
+    gf_svs_mt_snaplist_t,
+    gf_svs_mt_end
 };
 
 #endif
-

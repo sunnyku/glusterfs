@@ -2,7 +2,7 @@
 
 key=`echo $3 | cut -d '=' -f 1`
 val=`echo $3 | cut -d '=' -f 2`
-if [ ! "$key" -eq "enable-shared-storage" -o "$key" -eq "cluster.enable-shared-storage" ]; then
+if [ "$key" != "cluster.enable-shared-storage" ] && [ "$key" != "enable-shared-storage" ]; then
     exit;
 fi
 if [ "$val" != 'enable' ]; then
@@ -104,7 +104,7 @@ function check_volume_status()
     echo $status
 }
 
-mount_cmd="mount -t glusterfs "$local_node_hostname":/gluster_shared_storage \
+mount_cmd="mount -t glusterfs $local_node_hostname:/gluster_shared_storage \
            /var/run/gluster/shared_storage"
 
 if [ "$option" == "enable" ]; then
@@ -117,7 +117,7 @@ if [ "$option" == "enable" ]; then
         if [ "$retry" == 3 ]; then
             break;
         fi
-        status = check_volume_status;
+        status=$(check_volume_status)
     done
     # Mount the volume on all the nodes
     umount /var/run/gluster/shared_storage

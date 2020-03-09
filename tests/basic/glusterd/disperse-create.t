@@ -20,6 +20,10 @@ TEST $CLI volume create $V0 disperse 3 redundancy 1 $H0:$B0/b7 $H0:$B0/b8 $H0:$B
 EXPECT "1 x \(2 \+ 1\) = 3" volinfo_field $V0 "Number of Bricks"
 
 TEST $CLI volume delete $V0
+TEST $CLI volume create $V0 disperse-data 2 $H0:$B0/b10 $H0:$B0/b11 $H0:$B0/b12
+EXPECT "1 x \(2 \+ 1\) = 3" volinfo_field $V0 "Number of Bricks"
+
+TEST $CLI volume delete $V0
 TEST $CLI volume create $V0 redundancy 1 $H0:$B0/b10 $H0:$B0/b11 $H0:$B0/b12
 EXPECT "1 x \(2 \+ 1\) = 3" volinfo_field $V0 "Number of Bricks"
 
@@ -48,6 +52,7 @@ TEST ! $CLI volume create $V0 redundancy 1 redundancy 1 $H0:$B0/b20 $H0:$B0/b21 
 #Minimum counts test
 TEST ! $CLI volume create $V0 disperse 2 $H0:$B0/b20 $H0:$B0/b22
 TEST ! $CLI volume create $V0 disperse-data 1 redundancy 0 $H0:$B0/b20 $H0:$B0/b22
+TEST ! $CLI volume create $V0 disperse 4 disperse-data 4 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b23 $H0:$B0/b24
 TEST ! $CLI volume create $V0 redundancy 0 $H0:$B0/b20 $H0:$B0/b22
 
 #Wrong count n != k+m
@@ -64,18 +69,5 @@ TEST ! $CLI volume create $V0 redundancy 2 replica 2 $H0:$B0/b20 $H0:$B0/b21 $H0
 TEST ! $CLI volume create $V0 replica 2 disperse 4 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
 TEST ! $CLI volume create $V0 replica 2 disperse-data 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22 $H0:$B0/b23
 TEST ! $CLI volume create $V0 replica 2 redundancy 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
-#Stripe + Disperse
-TEST ! $CLI volume create $V0 disperse 4 stripe 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
-TEST ! $CLI volume create $V0 disperse-data 2 stripe 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22 $H0:$B0/b23
-TEST ! $CLI volume create $V0 redundancy 2 stripe 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
-TEST ! $CLI volume create $V0 stripe 2 disperse 4 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
-TEST ! $CLI volume create $V0 stripe 2 disperse-data 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22 $H0:$B0/b23
-TEST ! $CLI volume create $V0 stripe 2 redundancy 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
-#Stripe + Replicate + Disperse, It is failing with striped-dispersed volume.
-TEST ! $CLI volume create $V0 disperse 4 stripe 2 replica 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
-TEST ! $CLI volume create $V0 disperse-data 2 stripe 2 replica 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22 $H0:$B0/b23
-TEST ! $CLI volume create $V0 redundancy 2 stripe 2 replica 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
-TEST ! $CLI volume create $V0 stripe 2 disperse 4 replica 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
-TEST ! $CLI volume create $V0 stripe 2 disperse-data 2 replica 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22 $H0:$B0/b23
-TEST ! $CLI volume create $V0 stripe 2 redundancy 2 replica 2 $H0:$B0/b20 $H0:$B0/b21 $H0:$B0/b22
+
 cleanup

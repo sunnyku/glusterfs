@@ -11,7 +11,7 @@
 #ifdef RPC_XDR
 %#include "rpc-pragmas.h"
 #endif
-%#include "compat.h"
+%#include <glusterfs/compat.h>
 
  enum gf_cli_defrag_type {
 	GF_DEFRAG_CMD_NONE = 0,
@@ -68,6 +68,7 @@ enum gf_bitrot_type {
         GF_BITROT_OPTION_TYPE_EXPIRY_TIME,
         GF_BITROT_CMD_SCRUB_STATUS,
         GF_BITROT_CMD_SCRUB_ONDEMAND,
+        GF_BITROT_OPTION_TYPE_SIGNER_THREADS,
         GF_BITROT_OPTION_TYPE_MAX
 };
 
@@ -154,7 +155,8 @@ enum gf1_cli_info_op {
 };
 
 enum gf_cli_get_state_op {
-        GF_CLI_GET_STATE_DETAIL = 1
+        GF_CLI_GET_STATE_DETAIL = 1,
+        GF_CLI_GET_STATE_VOLOPTS = 2
 };
 
 enum gf1_cli_top_op {
@@ -179,6 +181,7 @@ enum gf_cli_status_type {
         GF_CLI_STATUS_CALLPOOL     = 0x000010,    /*000000000010000*/
         GF_CLI_STATUS_DETAIL       = 0x000020,    /*000000000100000*/
         GF_CLI_STATUS_TASKS        = 0x000040,    /*00000001000000*/
+        GF_CLI_STATUS_CLIENT_LIST  = 0x000080,    /*00000010000000*/
         GF_CLI_STATUS_MASK         = 0x0000FF,    /*000000011111111 Used to get the op*/
         GF_CLI_STATUS_VOL          = 0x000100,    /*00000000100000000*/
         GF_CLI_STATUS_ALL          = 0x000200,    /*00000001000000000*/

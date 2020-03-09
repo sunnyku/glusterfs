@@ -2,6 +2,14 @@
 # Copyright (c) 2013-2014 Red Hat, Inc. <http://www.redhat.com>
 #
 
+# As many tests are designed to take values of variables from 'env.rc',
+# it is good to source the file. While it is also required to source the
+# file individually in each tests (as it should be possible to run the
+# tests separately), exporting variables from env.rc is not harmful if
+# done here
+
+source ./tests/env.rc
+
 export TZ=UTC
 force="no"
 head="yes"
@@ -10,9 +18,89 @@ tests=""
 exit_on_failure="yes"
 skip_bad_tests="yes"
 skip_known_bugs="yes"
+result_output="/tmp/gluster_regression.txt"
 section_separator="========================================"
+run_timeout=200
+kill_after_time=5
+nfs_tests=$RUN_NFS_TESTS
+
+# Option below preserves log tarballs for each run of a test separately
+#       named: <test>-iteration-<n>.tar
+# If set to any other value, then log tarball is just named after the test and
+# overwritten in each iteration (saves space)
+#       named: <test>.tar
+# Use option -p to override default behavior
+skip_preserve_logs="yes"
 
 OSTYPE=$(uname -s)
+
+# Function for use in generating filenames with increasing "-<n>" index
+# In:
+#       $1 basepath: Directory where file needs to be created
+#       $2 filename: Name of the file sans extension
+#       $3 extension: Extension string that would be appended to the generated
+#               filename
+# Out:
+#       string of next available filename with appended "-<n>"
+# Example:
+#       Interested routines that want to create a file name, say foo-<n>.txt at
+#       location /var/log/gluster would pass in "/var/log/gluster" "foo" "txt"
+#       and be returned next available foo-<n> filename to create.
+# Notes:
+#       Function will not accept empty extension, and will return the same name
+#       over and over (which can be fixed when there is a need for it)
+function get_next_filename()
+{
+        local basepath=$1
+        local filename=$2
+        local extension=$3
+        local next=1
+        local tfilename="${filename}-${next}"
+        while [ -e "${basepath}/${tfilename}.${extension}" ]; do
+                next=$((next+1))
+                tfilename="${filename}-${next}"
+        done
+
+        echo "$tfilename"
+}
+
+# Tar the gluster logs and generate a tarball named after the first parameter
+# passed in to the function. Ideally the test name is passed to this function
+# to generate the required tarball.
+# Tarball name is further controlled by the variable skip_preserve_logs
+function tar_logs()
+{
+        t=$1
+
+        logdir=$(gluster --print-logdir)
+        basetarname=$(basename "$t" .t)
+
+        if [ -n "$logdir" ]
+        then
+                if [[ $skip_preserve_logs == "yes" ]]; then
+                        savetarname=$(get_next_filename "${logdir}" \
+                                "${basetarname}-iteration" "tar" \
+                                | tail -1)
+                else
+                        savetarname="$basetarname"
+                fi
+
+                # Can't use --exclude here because NetBSD doesn't have it.
+                # However, both it and Linux have -X to take patterns from
+                # a file, so use that.
+                (echo '*.tar'; echo .notar) > "${logdir}"/.notar \
+                        && \
+                tar -cf "${logdir}"/"${savetarname}".tar -X "${logdir}"/.notar \
+                        "${logdir}"/* 2> /dev/null \
+                        && \
+                find "$logdir"/* -maxdepth 0 -name '*.tar' -prune \
+                                        -o -exec rm -rf '{}' ';'
+
+                echo "Logs preserved in tarball $savetarname.tar"
+        else
+                echo "Logs not preserved, as logdir is not set"
+        fi
+}
 
 function check_dependencies()
 {
@@ -37,6 +125,12 @@ function check_dependencies()
       if [ $? -ne 0 ]; then
           MISSING="$MISSING nfs-utils"
       fi
+    fi
+
+    # Check for netstat
+    env netstat --version > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        MISSING="$MISSING netstat"
     fi
 
     # Check for the Perl Test Harness
@@ -68,6 +162,12 @@ function check_dependencies()
     pidof pidof > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         MISSING="$MISSING pidof"
+    fi
+
+    # Check for netstat
+    env netstat --version > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        MISSING="$MISSING netstat"
     fi
 
     # check for psutil python package
@@ -165,8 +265,10 @@ function match()
 # G_TESTDEF_TEST_STATUS_NETBSD7
 # Some examples:
 # G_TESTDEF_TEST_STATUS_CENTOS6=BAD_TEST,BUG=123456
+# G_TESTDEF_TEST_STATUS_CENTOS6=BRICK_MUX_BAD_TEST,BUG=123456
 # G_TESTDEF_TEST_STATUS_NETBSD7=KNOWN_ISSUE,BUG=4444444
 # G_TESTDEF_TEST_STATUS_CENTOS6=BAD_TEST,BUG=123456;555555
+# G_TESTDEF_TEST_STATUS_CENTOS6=NFS_TESTS,BUG=1385758
 # You can change status of test to enabled or delete the line only if all the
 # bugs are closed or modified or if the patch fixes it.
 function get_test_status ()
@@ -227,6 +329,7 @@ function run_tests()
 {
     RES=0
     FAILED=''
+    TESTS_NEEDED_RETRY=''
     GENERATED_CORE=''
     total_tests=0
     selected_tests=0
@@ -237,6 +340,15 @@ function run_tests()
     # key = path of .t file; value = time taken to run the .t file
     declare -A ELAPSEDTIMEMAP
 
+    # Test if -k is supported for timeout command
+    # This is not supported on centos6, but spuported on centos7
+    # The flags is required for running the command in both flavors
+    timeout_cmd_exists="yes"
+    timeout -k 1 10 echo "testing 'timeout' command"
+    if [ $? -ne 0 ]; then
+        timeout_cmd_exists="no"
+    fi
+
     for t in $(find ${regression_testsdir}/tests -name '*.t' \
                | LC_COLLATE=C sort) ; do
         old_cores=$(ls /*-*.core 2> /dev/null | wc -l)
@@ -245,7 +357,8 @@ function run_tests()
             selected_tests=$((selected_tests+1))
             echo
             echo $section_separator$section_separator
-            if [[ $(get_test_status $t) == "BAD_TEST" ]] && \
+            if [[ $(get_test_status $t) == "BAD_TEST" ]] || \
+               [[ $(get_test_status $t) == "BRICK_MUX_BAD_TEST" ]] && \
                [[ $skip_bad_tests == "yes" ]]
             then
                 skipped_bad_tests=$((skipped_bad_tests+1))
@@ -265,12 +378,37 @@ function run_tests()
                 echo
                 continue
             fi
+            if [[ $(get_test_status $t) == "NFS_TEST" ]] && \
+               [[ $nfs_tests == "no" ]]
+            then
+                echo "Skipping nfs test file $t"
+                echo $section_separator$section_separator
+                echo
+                continue
+            fi
             total_run_tests=$((total_run_tests+1))
             echo "[$(date +%H:%M:%S)] Running tests in file $t"
             starttime="$(date +%s)"
-            prove -vfe '/bin/bash' $t
+
+            local cmd_timeout=$run_timeout;
+            if [ ${timeout_cmd_exists} == "yes" ]; then
+                if [ $(grep -c "SCRIPT_TIMEOUT=" ${t}) == 1 ] ; then
+                    cmd_timeout=$(grep "SCRIPT_TIMEOUT=" ${t} | cut -f2 -d'=');
+                    echo "Timeout set is ${cmd_timeout}, default ${run_timeout}"
+                fi
+                timeout --foreground -k ${kill_after_time} ${cmd_timeout} prove -vmfe '/bin/bash' ${t}
+            else
+                prove -vmfe '/bin/bash' ${t}
+            fi
             TMP_RES=$?
             ELAPSEDTIMEMAP[$t]=`expr $(date +%s) - $starttime`
+            tar_logs "$t"
+
+            # timeout always return 124 if it is actually a timeout.
+            if ((${TMP_RES} == 124)); then
+                echo "${t} timed out after ${cmd_timeout} seconds"
+            fi
+
             if [ ${TMP_RES} -ne 0 ]  && [ "x${retry}" = "xyes" ] ; then
                 echo "$t: bad status $TMP_RES"
                 echo ""
@@ -280,13 +418,26 @@ function run_tests()
                 echo "       * we got some spurious failures *"
                 echo "       *********************************"
                 echo ""
-                prove -vfe '/bin/bash' $t
+
+                if [ ${timeout_cmd_exists} == "yes" ]; then
+                    timeout --foreground -k ${kill_after_time} ${cmd_timeout} prove -vmfe '/bin/bash' ${t}
+                else
+                    prove -vmfe '/bin/bash' ${t}
+                fi
                 TMP_RES=$?
+                tar_logs "$t"
+
+                if ((${TMP_RES} == 124)); then
+                    echo "${t} timed out after ${cmd_timeout} seconds"
+                fi
+
+                TESTS_NEEDED_RETRY="${TESTS_NEEDED_RETRY}${t} "
             fi
             if [ ${TMP_RES} -ne 0 ] ; then
                 RES=${TMP_RES}
                 FAILED="${FAILED}${t} "
             fi
+
             new_cores=$(ls /*-*.core 2> /dev/null | wc -l)
             if [ x"$new_cores" != x"$old_cores" ]; then
                 core_diff=$((new_cores-old_cores))
@@ -310,14 +461,6 @@ function run_tests()
     echo "Number of tests skipped as they were marked bad:   $skipped_bad_tests"
     echo "Number of tests skipped because of known_issues:   $skipped_known_issue_tests"
     echo "Number of tests that were run:                     $total_run_tests"
-    if [ ${RES} -ne 0 ] ; then
-        FAILED=$( echo ${FAILED} | tr ' ' '\n' | sort -u )
-        FAILED_COUNT=$( echo -n "${FAILED}" | grep -c '^' )
-        echo -e "\n$FAILED_COUNT test(s) failed \n${FAILED}"
-        GENERATED_CORE=$( echo  ${GENERATED_CORE} | tr ' ' '\n' | sort -u )
-        GENERATED_CORE_COUNT=$( echo -n "${GENERATED_CORE}" | grep -c '^' )
-        echo -e "\n$GENERATED_CORE_COUNT test(s) generated core \n${GENERATED_CORE}"
-    fi
 
     echo
     echo "Tests ordered by time taken, slowest to fastest: "
@@ -326,6 +469,23 @@ function run_tests()
     do
         echo "$key  -  ${ELAPSEDTIMEMAP["$key"]} second"
     done | sort -rn -k3
+
+    # Output the errors into a file
+    echo > "${result_output}"
+    if [ ${RES} -ne 0 ] ; then
+        FAILED=$( echo ${FAILED} | tr ' ' '\n' | sort -u )
+        FAILED_COUNT=$( echo -n "${FAILED}" | grep -c '^' )
+        echo -e "\n$FAILED_COUNT test(s) failed \n${FAILED}" >> "${result_output}"
+        GENERATED_CORE=$( echo  ${GENERATED_CORE} | tr ' ' '\n' | sort -u )
+        GENERATED_CORE_COUNT=$( echo -n "${GENERATED_CORE}" | grep -c '^' )
+        echo -e "\n$GENERATED_CORE_COUNT test(s) generated core \n${GENERATED_CORE}" >> "${result_output}"
+        cat "${result_output}"
+    fi
+    TESTS_NEEDED_RETRY=$( echo ${TESTS_NEEDED_RETRY} | tr ' ' '\n' | sort -u )
+    RETRY_COUNT=$( echo -n "${TESTS_NEEDED_RETRY}" | grep -c '^' )
+    if [ ${RETRY_COUNT} -ne 0 ] ; then
+        echo -e "\n${RETRY_COUNT} test(s) needed retry \n${TESTS_NEEDED_RETRY}"
+    fi
 
     echo
     echo "Result is $RES"
@@ -354,7 +514,7 @@ function run_head_tests()
 }
 
 function parse_args () {
-    args=`getopt frcbkhH "$@"`
+    args=`getopt frcbkphHno:t: "$@"`
     set -- $args
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -365,6 +525,10 @@ function parse_args () {
         -c)    exit_on_failure="no" ;;
         -b)    skip_bad_tests="no" ;;
         -k)    skip_known_bugs="no" ;;
+        -p)    skip_preserve_logs="no" ;;
+        -o)    result_output="$2"; shift;;
+        -t)    run_timeout="$2"; shift;;
+        -n)    nfs_tests="no";;
         --)    shift; break;;
         esac
         shift

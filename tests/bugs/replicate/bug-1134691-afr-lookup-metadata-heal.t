@@ -10,6 +10,9 @@ TEST pidof glusterd
 TEST $CLI volume create $V0 replica 3 $H0:$B0/brick{0,1,2}
 TEST $CLI volume set $V0 performance.stat-prefetch off
 TEST $CLI volume set $V0 cluster.self-heal-daemon off
+TEST $CLI volume set $V0 cluster.data-self-heal on
+TEST $CLI volume set $V0 cluster.metadata-self-heal on
+TEST $CLI volume set $V0 cluster.entry-self-heal on
 TEST $CLI volume start $V0
 TEST glusterfs --volfile-id=/$V0 --volfile-server=$H0 $M0 --attribute-timeout=0 --entry-timeout=0
 
@@ -22,9 +25,11 @@ iatt=$(stat -c "%g:%u:%A" file)
 
 TEST $CLI volume start $V0 force
 EXPECT_WITHIN $PROCESS_UP_TIMEOUT "1" afr_child_up_status $V0 2
+EXPECT 2 get_pending_heal_count $V0
 
 #Trigger metadataheal
 TEST stat file
+EXPECT_WITHIN $HEAL_TIMEOUT "^0$" get_pending_heal_count $V0
 
 #iattrs must be matching
 iatt1=$(stat -c "%g:%u:%A" $B0/brick0/file)

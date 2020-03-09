@@ -6,7 +6,7 @@
 cleanup
 
 SEEK=$(dirname $0)/seek
-build_tester $(dirname $0)/seek.c -o ${SEEK}
+build_tester $(dirname $0)/../seek.c -o ${SEEK}
 
 TEST glusterd
 TEST pidof glusterd
@@ -51,6 +51,7 @@ EXPECT "^$((${BSIZE} * 5 + 512))$" ${SEEK} scan ${M0}/test hole $((${BSIZE} * 5 
 EXPECT "^ENXIO$" ${SEEK} scan ${M0}/test hole $((${BSIZE} * 5 + 512))
 EXPECT "^ENXIO$" ${SEEK} scan ${M0}/test hole $((${BSIZE} * 6))
 
+rm -f ${SEEK}
 cleanup
 
 # Centos6 regression slaves seem to not support SEEK_DATA/SEEK_HOLE

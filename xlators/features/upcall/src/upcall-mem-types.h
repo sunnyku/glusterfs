@@ -11,14 +11,13 @@
 #ifndef __UPCALL_MEM_TYPES_H__
 #define __UPCALL_MEM_TYPES_H__
 
-#include "mem-types.h"
+#include <glusterfs/mem-types.h>
 
 enum gf_upcall_mem_types_ {
-        gf_upcall_mt_conf_t = gf_common_mt_end + 1,
-        gf_upcall_mt_private_t,
-        gf_upcall_mt_upcall_inode_ctx_t,
-        gf_upcall_mt_upcall_client_entry_t,
-        gf_upcall_mt_end
+    gf_upcall_mt_conf_t = gf_common_mt_end + 1,
+    gf_upcall_mt_private_t,
+    gf_upcall_mt_upcall_inode_ctx_t,
+    gf_upcall_mt_upcall_client_entry_t,
+    gf_upcall_mt_end
 };
 #endif
-

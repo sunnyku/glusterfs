@@ -11,10 +11,10 @@
 #ifndef __READONLY_MEM_TYPES_H__
 #define __READONLY_MEM_TYPES_H__
 
-#include "mem-types.h"
+#include <glusterfs/mem-types.h>
 
 enum gf_read_only_mem_types_ {
-        gf_read_only_mt_priv_t = gf_common_mt_end + 1,
-        gf_read_only_mt_end
+    gf_read_only_mt_priv_t = gf_common_mt_end + 1,
+    gf_read_only_mt_end
 };
 #endif

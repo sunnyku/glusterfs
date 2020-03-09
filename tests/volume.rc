@@ -48,7 +48,10 @@ function online_brick_count ()
        v3=`check_brick_status "Quota"`
        v4=`check_brick_status "Snapshot"`
        v5=`check_brick_status "Tier"`
-       tot=$((v1-v2-v3-v4-v5))
+       v6=`check_brick_status "Scrubber"`
+       v7=`check_brick_status "Bitrot"`
+
+       tot=$((v1-v2-v3-v4-v5-v6-v7))
        echo $tot
 
 }
@@ -81,10 +84,6 @@ function fix-layout_status_field {
         $CLI volume rebalance $1 status | awk '{print $2,$3,$4}' |sed -n 3p |tr -d '[^0-9+\.]'|sed 's/ *$//g'
 }
 
-function detach_tier_status_field_complete {
-        $CLI volume tier  $1 detach status | awk '{print $7}' |sed -n 4p
-}
-
 function remove_brick_status_completed_field {
         local vol=$1
         local brick_list=$2
@@ -93,7 +92,8 @@ function remove_brick_status_completed_field {
 
 function get_mount_process_pid {
         local vol=$1
-        ps auxww | grep glusterfs | grep -E "volfile-id[ =]/?$vol " | awk '{print $2}' | head -1
+        local mnt=$2
+        ps auxww | grep glusterfs | grep -E "volfile-id[ =]/?$vol .*$mnt" | awk '{print $2}' | head -1
 }
 
 function get_nfs_pid ()
@@ -103,7 +103,7 @@ function get_nfs_pid ()
 
 function read_nfs_pidfile ()
 {
-        echo `cat $GLUSTERD_WORKDIR/nfs/run/nfs.pid`
+        echo `cat $GLUSTERD_PIDFILEDIR/nfs/nfs.pid`
 }
 
 function cleanup_statedump {
@@ -112,21 +112,39 @@ function cleanup_statedump {
        #.vimrc friendly comment */
 }
 
+function wait_statedump_ready {
+        local maxtime="${1}000000000"
+        local pid="$2"
+        local deadline="$(($(date +%s%N) + maxtime))"
+        local fname
+
+        while [[ "$(date +%s%N)" < "$deadline" ]]; do
+                fname="$statedumpdir/$(ls $statedumpdir | grep -E "\.$pid\.dump\.")"
+                if [[ -f "$fname" ]]; then
+                        grep "^DUMP-END-TIME" "$fname" >/dev/null
+                        if [[ $? -eq 0 ]]; then
+                                echo $fname
+                                return
+                        fi
+                fi
+                sleep 0.1
+        done
+
+        echo "nostatedump"
+}
+
 function generate_statedump {
-        local fpath=""
         pid=$1
         #remove old stale statedumps
         cleanup_statedump $pid
         kill -USR1 $pid
-        #Wait till the statedump is generated
-        sleep 1
-        fname=$(ls $statedumpdir | grep -E "\.$pid\.dump\.")
-        echo $statedumpdir/$fname
+        wait_statedump_ready 3 $pid
 }
 
 function generate_mount_statedump {
         local vol=$1
-        generate_statedump $(get_mount_process_pid $vol)
+        local mnt=$2
+        generate_statedump $(get_mount_process_pid $vol $mnt)
 }
 
 function cleanup_mount_statedump {
@@ -137,7 +155,7 @@ function cleanup_mount_statedump {
 function snap_client_connected_status {
          local vol=$1
          local fpath=$(generate_mount_statedump $vol)
-         up=$(grep -a -A2 xlator.protocol.client.$vol-snapd-client.priv $fpath | tail -1 | cut -f 2 -d'=')
+         up=$(grep -a -A1 xlator.protocol.client.$vol-snapd-client.priv $fpath | tail -1 | cut -f 2 -d'=')
          rm -f $fpath
          echo "$up"
 }
@@ -205,14 +223,16 @@ function ec_child_up_status {
         local vol=$1
         local dist_id=$2
         local brick_id=$(($3 + 1))
-        local mask=$(ec_get_info $vol $dist_id "childs_up_mask" $(generate_mount_statedump $vol))
+        local mnt=$4
+        local mask=$(ec_get_info $vol $dist_id "childs_up_mask" $(generate_mount_statedump $vol $mnt))
         echo "${mask: -$brick_id:1}"
 }
 
 function ec_child_up_count {
         local vol=$1
         local dist_id=$2
-        ec_get_info $vol $dist_id "childs_up" $(generate_mount_statedump $vol)
+        local mnt=$3
+        ec_get_info $vol $dist_id "childs_up" $(generate_mount_statedump $vol $mnt)
 }
 
 function ec_child_up_status_shd {
@@ -230,11 +250,13 @@ function ec_child_up_count_shd {
 }
 
 function get_shd_process_pid {
-        ps auxww | grep glusterfs | grep -E "glustershd/run/glustershd.pid" | awk '{print $2}' | head -1
+        local vol=$1
+        ps auxww | grep "process-name\ glustershd" | awk '{print $2}' | head -1
 }
 
 function generate_shd_statedump {
-        generate_statedump $(get_shd_process_pid)
+        local vol=$1
+        generate_statedump $(get_shd_process_pid $vol)
 }
 
 function generate_nfs_statedump {
@@ -274,12 +296,16 @@ function quotad_up_status {
         gluster volume status | grep "Quota Daemon" | awk '{print $7}'
 }
 
+function get_glusterd_pid {
+        pgrep '^glusterd$' | head -1
+}
+
 function get_brick_pidfile {
         local vol=$1
         local host=$2
         local brick=$3
         local brick_hiphenated=$(echo $brick | tr '/' '-')
-        echo $GLUSTERD_WORKDIR/vols/$vol/run/${host}${brick_hiphenated}.pid
+        echo $GLUSTERD_PIDFILEDIR/vols/$vol/${host}${brick_hiphenated}.pid
 }
 
 function get_brick_pid {
@@ -297,15 +323,12 @@ function kill_brick {
 
 	gf_attach -d $socket $brick
 
-	# When the last brick in a process is terminated, the process has to
-	# sleep for a second to give the RPC response a chance to get back to
-	# GlusterD.  Without that, we get random failures in tests that use
-	# "volume stop" whenever the process termination is observed before the
-	# RPC response.  However, that same one-second sleep can cause other
-	# random failures in tests that assume a brick will already be gone
-	# before "gf_attach -d" returns.  There are too many of those to fix,
-	# so we compensate by putting the same one-second sleep here.
-	sleep 1
+        local deadline="$(($(date +%s%N) + ${PROCESS_UP_TIMEOUT}000000000))"
+        while [[ "$(date +%s%N)" < "$deadline" ]]; do
+                if [[ "$(brick_up_status $vol $host $brick)" == "0" ]]; then
+                        break
+                fi
+        done
 }
 
 function check_option_help_presence {
@@ -357,6 +380,30 @@ function get_text_xattr {
         local key=$1
         local path=$2
         getfattr -h -d -m. -e text $path 2>/dev/null | grep -a $key | cut -f2 -d'='
+}
+
+function get_gfid2path {
+        local path=$1
+        getfattr -h --only-values -n glusterfs.gfidtopath $path 2>/dev/null
+}
+
+function get_mdata {
+        local path=$1
+        getfattr -h -e hex -n trusted.glusterfs.mdata $path 2>/dev/null | grep "trusted.glusterfs.mdata" | cut -f2 -d'='
+}
+
+function get_mdata_count {
+    getfattr -d -m . -e hex $@ 2>/dev/null | grep mdata | wc -l
+}
+
+function get_mdata_uniq_count {
+    getfattr -d -m . -e hex $@ 2>/dev/null | grep mdata | uniq | wc -l
+}
+
+function get_xattr_key {
+        local key=$1
+        local path=$2
+        getfattr -h -d -m. -e text $path 2>/dev/null | grep -a $key | cut -f1 -d'='
 }
 
 function gf_check_file_opened_in_brick {
@@ -522,9 +569,8 @@ function volume_exists() {
 }
 
 function killall_gluster() {
-        pkill gluster
-        find $GLUSTERD_WORKDIR -name '*.pid' | xargs rm -f
-        sleep 1
+        terminate_pids $(process_pids gluster)
+        find $GLUSTERD_PIDFILEDIR -name '*.pid' | xargs rm -f
 }
 
 function afr_get_index_count {
@@ -784,4 +830,165 @@ function get_hard_link_count {
 function count_sh_entries()
 {
     ls $1/.glusterfs/indices/xattrop | grep -v "xattrop-" | wc -l
+}
+
+function check_brick_multiplex() {
+        cnt="$(ls /var/log/glusterfs/bricks|wc -l)"
+        local ret=$($CLI volume info|grep "cluster.brick-multiplex"|cut -d" " -f2)
+        local bcnt="$(brick_count)"
+
+        if [ $bcnt -ne 1 ]; then
+           if [ "$ret" = "on" ] || [ $cnt -eq 1 ]; then
+              echo "Y"
+           else
+              echo "N"
+           fi
+        else
+           echo "N"
+        fi
+}
+
+function get_fd_count {
+        local vol=$1
+        local host=$2
+        local brick=$3
+        local fname=$4
+        local val="$(check_brick_multiplex)"
+        local gfid_str=$(gf_gfid_xattr_to_str $(gf_get_gfid_xattr $brick/$fname))
+        local statedump=$(generate_brick_statedump $vol $host $brick)
+        if [ $val == "N" ]; then
+            count=$(grep "gfid=$gfid_str" $statedump -A2 | grep fd-count | cut -f2 -d'=' | tail -1)
+        else
+            count=$(grep "${brick}.active.1" -A3 $statedump | grep "gfid=$gfid_str" -A2 | grep fd-count | cut -f2 -d'=' | tail -1)
+        fi
+# If no information is found for a given gfid, it means it has not been
+# accessed, so it doesn't have any open fd. In this case we return 0.
+        count="${count:-0}"
+        rm -f $statedump
+        echo $count
+}
+
+
+function get_active_fd_count {
+        local vol=$1
+        local host=$2
+        local brick=$3
+        local fname=$4
+        local val="$(check_brick_multiplex)"
+        local gfid_str=$(gf_gfid_xattr_to_str $(gf_get_gfid_xattr $brick/$fname))
+        local statedump=$(generate_brick_statedump $vol $host $brick)
+        if [ $val == "N" ]; then
+            count=$(grep "gfid=$gfid_str" $statedump -A2 | grep fd-count | cut -f2 -d'=' | tail -1)
+        else
+            count=$(grep "${brick}.active.1" -A3 $statedump | grep "gfid=$gfid_str" -A2 | grep fd-count | cut -f2 -d'=' | tail -1)
+        fi
+        rm -f $statedump
+        echo $count
+}
+
+function get_mount_active_size_value {
+        local vol=$1
+        local mount=$2
+        local statedump=$(generate_mount_statedump $vol $mount)
+        local val=$(grep "active_size" $statedump | cut -f2 -d'=' | tail -1)
+        rm -f $statedump
+        echo $val
+}
+
+function get_mount_lru_size_value {
+        local vol=$1
+        local mount=$2
+        local statedump=$(generate_mount_statedump $vol $mount)
+        local val=$(grep "lru_size" $statedump | cut -f2 -d'=' | tail -1)
+        rm -f $statedump
+        echo $val
+}
+
+function check_changelog_op {
+        local clog_path=$1
+        local op=$2
+
+        $PYTHON $(dirname $0)/../../utils/changelogparser.py ${clog_path}/CHANGELOG | grep "$op" | wc -l
+}
+
+function processed_changelogs {
+        local processed_dir=$1
+        count=$(ls -l $processed_dir | grep CHANGELOG | wc -l)
+        if [ $count -gt 0 ];
+        then
+            echo "Y"
+        else
+            echo "N"
+        fi
+}
+
+function volgen_check_ancestry {
+        #Returns Y if ancestor_xl is an ancestor of $child_xl according to the volfile
+        local volfile="$1"
+
+        local child_xl_type="$2"
+        local child_xl="$3"
+
+        local ancestor_xl_type="$4"
+        local ancestor_xl="$5"
+
+        child_linenum=$(awk '/type $child_xl_type\/$child_xl/ {print FNR}' $volfile)
+        ancestor_linenum=$(awk '/type $ancestor_xl_type\/$ancestor_xl/ {print FNR}' $volfile)
+
+        if [ $child_linenum -lt $ancestor_linenum ];
+        then
+                echo "Y"
+        else
+                echo "N"
+        fi
+}
+
+function get_shd_mux_pid {
+   local volume=$1
+   pid=`$CLI volume status $volume shd | awk '/Self-heal/{print $8}'`
+   echo $pid
+}
+
+function shd_count {
+   ps aux | grep "glustershd" | grep -v grep | wc -l
+}
+
+function number_healer_threads_shd {
+   local pid=$(get_shd_mux_pid $1)
+   pstack $pid | grep $2 | wc -l
+}
+
+function get_mtime {
+    local time=$(get-mdata-xattr -m $1)
+    if [ $time == "-1" ];
+    then
+        echo $(stat -c %Y $1)
+    else
+        echo $time
+    fi
+}
+
+function get_ctime {
+    local time=$(get-mdata-xattr -c $1)
+    if [ $time == "-1" ];
+    then
+        echo $(stat -c %Z $1)
+    else
+        echo $time
+    fi
+}
+
+function get_atime {
+    local time=$(get-mdata-xattr -a $1)
+    if [ $time == "-1" ];
+    then
+        echo $(stat -c %X $1)
+    else
+        echo $time
+    fi
+}
+
+function get-xml()
+{
+        $CLI $1 --xml | xmllint --format - | grep $2 | sed 's/\(<"$2">\|<\/"$2">\)//g'
 }

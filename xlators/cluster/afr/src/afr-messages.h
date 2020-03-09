@@ -11,363 +11,157 @@
 #ifndef _AFR_MESSAGES_H_
 #define _AFR_MESSAGES_H_
 
-#include "glfs-message-id.h"
+#include <glusterfs/glfs-message-id.h>
 
-/*! \file afr-messages.h
- *  \brief AFR log-message IDs and their descriptions.
+/* To add new message IDs, append new identifiers at the end of the list.
+ *
+ * Never remove a message ID. If it's not used anymore, you can rename it or
+ * leave it as it is, but not delete it. This is to prevent reutilization of
+ * IDs by other messages.
+ *
+ * The component name must match one of the entries defined in
+ * glfs-message-id.h.
  */
 
-/* NOTE: Rules for message additions
- * 1) Each instance of a message is _better_ left with a unique message ID, even
- * if the message format is the same. Reasoning is that, if the message
- * format needs to change in one instance, the other instances are not
- * impacted or the new change does not change the ID of the instance being
- * modified.
- * 2) Addition of a message,
- * - Should increment the GLFS_NUM_MESSAGES
- * - Append to the list of messages defined, towards the end
- * - Retain macro naming as glfs_msg_X (for redability across developers)
- * NOTE: Rules for message format modifications
- * 3) Check acorss the code if the message ID macro in question is reused
- * anywhere. If reused then then the modifications should ensure correctness
- * everywhere, or needs a new message ID as (1) above was not adhered to. If
- * not used anywhere, proceed with the required modification.
- * NOTE: Rules for message deletion
- * 4) Check (3) and if used anywhere else, then cannot be deleted. If not used
- * anywhere, then can be deleted, but will leave a hole by design, as
- * addition rules specify modification to the end of the list and not filling
- * holes.
- */
+GLFS_MSGID(
+    AFR, AFR_MSG_QUORUM_FAIL, AFR_MSG_QUORUM_MET, AFR_MSG_QUORUM_OVERRIDE,
+    AFR_MSG_INVALID_CHILD_UP, AFR_MSG_SUBVOL_UP, AFR_MSG_SUBVOLS_DOWN,
+    AFR_MSG_ENTRY_UNLOCK_FAIL, AFR_MSG_SPLIT_BRAIN, AFR_MSG_OPEN_FAIL,
+    AFR_MSG_UNLOCK_FAIL, AFR_MSG_REPLACE_BRICK_STATUS, AFR_MSG_GFID_NULL,
+    AFR_MSG_FD_CREATE_FAILED, AFR_MSG_DICT_SET_FAILED,
+    AFR_MSG_EXPUNGING_FILE_OR_DIR, AFR_MSG_MIGRATION_IN_PROGRESS,
+    AFR_MSG_CHILD_MISCONFIGURED, AFR_MSG_VOL_MISCONFIGURED,
+    AFR_MSG_INTERNAL_LKS_FAILED, AFR_MSG_INVALID_FD, AFR_MSG_LOCK_INFO,
+    AFR_MSG_LOCK_XLATOR_NOT_LOADED, AFR_MSG_FD_CTX_GET_FAILED,
+    AFR_MSG_INVALID_SUBVOL, AFR_MSG_PUMP_XLATOR_ERROR, AFR_MSG_SELF_HEAL_INFO,
+    AFR_MSG_READ_SUBVOL_ERROR, AFR_MSG_DICT_GET_FAILED, AFR_MSG_INFO_COMMON,
+    AFR_MSG_SPLIT_BRAIN_CHOICE_ERROR, AFR_MSG_LOCAL_CHILD, AFR_MSG_INVALID_DATA,
+    AFR_MSG_INVALID_ARG, AFR_MSG_INDEX_DIR_GET_FAILED, AFR_MSG_FSYNC_FAILED,
+    AFR_MSG_FAVORITE_CHILD, AFR_MSG_SELF_HEAL_FAILED,
+    AFR_MSG_SPLIT_BRAIN_STATUS, AFR_MSG_ADD_BRICK_STATUS, AFR_MSG_NO_CHANGELOG,
+    AFR_MSG_TIMER_CREATE_FAIL, AFR_MSG_SBRAIN_FAV_CHILD_POLICY,
+    AFR_MSG_INODE_CTX_GET_FAILED, AFR_MSG_THIN_ARB,
+    AFR_MSG_THIN_ARB_XATTROP_FAILED, AFR_MSG_THIN_ARB_LOC_POP_FAILED,
+    AFR_MSG_GET_PEND_VAL, AFR_MSG_THIN_ARB_SKIP_SHD, AFR_MSG_UNKNOWN_SET,
+    AFR_MSG_NO_XL_ID, AFR_MSG_SELF_HEAL_INFO_START,
+    AFR_MSG_SELF_HEAL_INFO_FINISH, AFR_MSG_INCRE_COUNT,
+    AFR_MSG_ADD_TO_OUTPUT_FAILED, AFR_MSG_SET_TIME_FAILED,
+    AFR_MSG_GFID_MISMATCH_DETECTED, AFR_MSG_GFID_HEAL_MSG,
+    AFR_MSG_THIN_ARB_LOOKUP_FAILED, AFR_MSG_DICT_CREATE_FAILED,
+    AFR_MSG_NO_MAJORITY_TO_RESOLVE, AFR_MSG_TYPE_MISMATCH,
+    AFR_MSG_SIZE_POLICY_NOT_APPLICABLE, AFR_MSG_NO_CHILD_SELECTED,
+    AFR_MSG_INVALID_CHILD, AFR_MSG_RESOLVE_CONFLICTING_DATA,
+    SERROR_GETTING_SRC_BRICK, SNO_DIFF_IN_MTIME, SNO_BIGGER_FILE,
+    SALL_BRICKS_UP_TO_RESOLVE, AFR_MSG_UNLOCK_FAILED, AFR_MSG_POST_OP_FAILED,
+    AFR_MSG_TA_FRAME_CREATE_FAILED, AFR_MSG_SET_KEY_XATTROP_FAILED,
+    AFR_MSG_BLOCKING_ENTRYLKS_FAILED, AFR_MSG_FOP_FAILED,
+    AFR_MSG_CLEAN_UP_FAILED, AFR_MSG_UNABLE_TO_FETCH, AFR_MSG_XATTR_SET_FAILED,
+    AFR_MSG_SPLIT_BRAIN_REPLICA, AFR_MSG_INODE_CTX_FAILED,
+    AFR_MSG_LOOKUP_FAILED, AFR_MSG_ALL_SUBVOLS_DOWN,
+    AFR_MSG_RELEASE_LOCK_FAILED, AFR_MSG_CLEAR_TIME_SPLIT_BRAIN,
+    AFR_MSG_READ_FAILED, AFR_MSG_LAUNCH_FAILED, AFR_MSG_READ_SUBVOL_NOT_UP,
+    AFR_MSG_LK_HEAL_DOM, AFR_MSG_NEW_BRICK, AFR_MSG_SPLIT_BRAIN_SET_FAILED,
+    AFR_MSG_SPLIT_BRAIN_DETERMINE_FAILED, AFR_MSG_HEALER_SPAWN_FAILED,
+    AFR_MSG_ADD_CRAWL_EVENT_FAILED, AFR_MSG_NULL_DEREF, AFR_MSG_SET_PEND_XATTR,
+    AFR_MSG_INTERNAL_ATTR);
 
-#define GLFS_COMP_BASE_AFR      GLFS_MSGID_COMP_AFR
-#define GLFS_NUM_MESSAGES       42
-#define GLFS_MSGID_END          (GLFS_COMP_BASE_AFR + GLFS_NUM_MESSAGES + 1)
-
-#define glfs_msg_start_x GLFS_COMP_BASE_AFR, "Invalid: Start of messages"
-
-/*!
- * @messageid 108001
- * @diagnosis Client quorum is not met due to which file modification
- * operations are disallowed.
- * @recommendedaction Some brick processes are down/ not visible from the
- * client. Ensure that the bricks are up/ network traffic is not blocked.
- */
-#define AFR_MSG_QUORUM_FAIL             (GLFS_COMP_BASE_AFR + 1)
-
-
-/*!
- * @messageid 108002
- * @diagnosis The bricks that were down are now up and quorum is restored.
- * @recommendedaction Possibly check why the bricks went down to begin with.
- */
-#define AFR_MSG_QUORUM_MET              (GLFS_COMP_BASE_AFR + 2)
-
-
-/*!
- * @messageid 108003
- * @diagnosis Client quorum-type was set to auto due to which the quorum-count
- * option is no longer valid.
- * @recommendedaction None.
- */
-#define AFR_MSG_QUORUM_OVERRIDE         (GLFS_COMP_BASE_AFR + 3)
-
-
-/*!
- * @messageid 108004
- * @diagnosis Replication sub volume witnessed a connection notification
- * from a brick which does not belong to its replica set.
- * @recommendedaction None. This is a safety check in code.
- */
-#define AFR_MSG_INVALID_CHILD_UP        (GLFS_COMP_BASE_AFR + 4)
-
-
-/*!
- * @messageid 108005
- * @diagnosis A replica set that was inaccessible because all its bricks were
- * down is now accessible because at least one of its bricks came back up.
- * @recommendedaction Possibly check why all the bricks of that replica set
- * went down to begin with.
- */
-#define AFR_MSG_SUBVOL_UP               (GLFS_COMP_BASE_AFR + 5)
-
-
-/*!
- * @messageid 108006
- * @diagnosis bricks of a replica set are down. Data residing in that
- * replica cannot be accessed until one of the bricks come back up.
- * @recommendedaction Ensure that the bricks are up.
- */
-#define AFR_MSG_SUBVOLS_DOWN            (GLFS_COMP_BASE_AFR + 6)
-
-
-/*!
- * @messageid 108007
- * @diagnosis Entry unlocks failed on a brick.
- * @recommendedaction Error number in the log should give the reason why it
- * failed. Also observe brick logs for more information.
-*/
-#define AFR_MSG_ENTRY_UNLOCK_FAIL       (GLFS_COMP_BASE_AFR + 7)
-
-
-/*!
- * @messageid 108008
- * @diagnosis There is an inconsistency in the file's data/metadata/gfid
- * amongst the bricks of a replica set.
- * @recommendedaction Resolve the split brain by clearing the AFR changelog
- * attributes from the appropriate brick and trigger self-heal.
- */
-#define AFR_MSG_SPLIT_BRAIN             (GLFS_COMP_BASE_AFR + 8)
-
-
-/*!
- * @messageid 108009
- * @diagnosis open/opendir failed on a brick.
- * @recommendedaction Error number in the log should give the reason why it
- * failed. Also observe brick logs for more information.
- */
-#define AFR_MSG_OPEN_FAIL               (GLFS_COMP_BASE_AFR + 9)
-
-
-/*!
- * @messageid 108010
- * @diagnosis unlocks failed on a brick.
- * @recommendedaction Error number in the log should give the reason why it
- * failed. Also observe brick logs for more information.
-*/
-#define AFR_MSG_UNLOCK_FAIL       (GLFS_COMP_BASE_AFR + 10)
-
-/*!
- * @messageid 108011
- * @diagnosis Setting of pending xattrs succeeded/failed during replace-brick
- * operation.
- * @recommendedaction In case of failure, error number in the log should give
- * the reason why it failed. Also observe brick logs for more information.
-*/
-#define AFR_MSG_REPLACE_BRICK_STATUS     (GLFS_COMP_BASE_AFR + 11)
-
-/*!
- * @messageid 108012
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_GFID_NULL                       (GLFS_COMP_BASE_AFR + 12)
-
-/*!
- * @messageid 108013
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_FD_CREATE_FAILED                (GLFS_COMP_BASE_AFR + 13)
-
-/*!
- * @messageid 108014
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_DICT_SET_FAILED                 (GLFS_COMP_BASE_AFR + 14)
-
-/*!
- * @messageid 108015
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_EXPUNGING_FILE_OR_DIR           (GLFS_COMP_BASE_AFR + 15)
-
-/*!
- * @messageid 108016
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_MIGRATION_IN_PROGRESS           (GLFS_COMP_BASE_AFR + 16)
-
-/*!
- * @messageid 108017
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_CHILD_MISCONFIGURED             (GLFS_COMP_BASE_AFR + 17)
-
-/*!
- * @messageid 108018
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_VOL_MISCONFIGURED               (GLFS_COMP_BASE_AFR + 18)
-
-/*!
- * @messageid 108019
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_BLOCKING_LKS_FAILED             (GLFS_COMP_BASE_AFR + 19)
-
-/*!
- * @messageid 108020
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_INVALID_FD                      (GLFS_COMP_BASE_AFR + 20)
-
-/*!
- * @messageid 108021
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_LOCK_INFO                       (GLFS_COMP_BASE_AFR + 21)
-
-/*!
- * @messageid 108022
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_LOCK_XLATOR_NOT_LOADED          (GLFS_COMP_BASE_AFR + 22)
-
-/*!
- * @messageid 108023
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_FD_CTX_GET_FAILED               (GLFS_COMP_BASE_AFR + 23)
-
-/*!
- * @messageid 108024
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_INVALID_SUBVOL                    (GLFS_COMP_BASE_AFR + 24)
-
-/*!
- * @messageid 108025
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_PUMP_XLATOR_ERROR               (GLFS_COMP_BASE_AFR + 25)
-
-/*!
- * @messageid 108026
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_SELF_HEAL_INFO                  (GLFS_COMP_BASE_AFR + 26)
-
-/*!
- * @messageid 108027
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_READ_SUBVOL_ERROR               (GLFS_COMP_BASE_AFR + 27)
-
-/*!
- * @messageid 108028
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_DICT_GET_FAILED                 (GLFS_COMP_BASE_AFR + 28)
-
-
-/*!
- * @messageid 108029
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_INFO_COMMON                     (GLFS_COMP_BASE_AFR + 29)
-
-/*!
- * @messageid 108030
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_SPLIT_BRAIN_CHOICE_ERROR         (GLFS_COMP_BASE_AFR + 30)
-
-/*!
- * @messageid 108031
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_LOCAL_CHILD         (GLFS_COMP_BASE_AFR + 31)
-
-/*!
- * @messageid 108032
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_INVALID_DATA         (GLFS_COMP_BASE_AFR + 32)
-
-/*!
- * @messageid 108033
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_INVALID_ARG         (GLFS_COMP_BASE_AFR + 33)
-
-/*!
- * @messageid 108034
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_INDEX_DIR_GET_FAILED         (GLFS_COMP_BASE_AFR + 34)
-
-/*!
- * @messageid 108035
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_FSYNC_FAILED         (GLFS_COMP_BASE_AFR + 35)
-
-/*!
- * @messageid 108036
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_FAVORITE_CHILD         (GLFS_COMP_BASE_AFR + 36)
-/*!
- * @messageid 108037
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_SELF_HEAL_FAILED                (GLFS_COMP_BASE_AFR + 37)
-
-/*!
- * @messageid 108038
- * @diagnosis
- * @recommendedaction
-*/
-#define AFR_MSG_SPLIT_BRAIN_STATUS      (GLFS_COMP_BASE_AFR + 38)
-
-/*!
- * @messageid 108039
- * @diagnosis Setting of pending xattrs succeeded/failed during add-brick
- * operation.
- * @recommendedaction In case of failure, error number in the log should give
- * the reason why it failed. Also observe brick logs for more information.
-*/
-#define AFR_MSG_ADD_BRICK_STATUS        (GLFS_COMP_BASE_AFR + 39)
-
-
-/*!
- * @messageid 108040
- * @diagnosis AFR was unable to be loaded because the pending-changelog xattrs
- * were not found in the volfile.
- * @recommendedaction Please ensure cluster op-version is atleast 30707 and the
- * volfiles are regenerated.
-*/
-#define AFR_MSG_NO_CHANGELOG  (GLFS_COMP_BASE_AFR + 40)
-
-/*!
- * @messageid 108041
- * @diagnosis Unable to create timer thread for delayed initialization.
- * @recommendedaction Possibly check process's log file for messages from
- * timer infra.
-*/
-#define AFR_MSG_TIMER_CREATE_FAIL               (GLFS_COMP_BASE_AFR + 41)
-
-/*!
- * @messageid 108042
- * @diagnosis Log messages relating to automated resolution of split-brain files
- * based on favorite child policies.
- * @recommendedaction
-*/
-#define AFR_MSG_SBRAIN_FAV_CHILD_POLICY  (GLFS_COMP_BASE_AFR + 42)
-
-#define glfs_msg_end_x GLFS_MSGID_END, "Invalid: End of messages"
+#define AFR_MSG_DICT_GET_FAILED_STR "Dict get failed"
+#define AFR_MSG_DICT_SET_FAILED_STR "Dict set failed"
+#define AFR_MSG_HEALER_SPAWN_FAILED_STR "Healer spawn failed"
+#define AFR_MSG_ADD_CRAWL_EVENT_FAILED_STR "Adding crawl event failed"
+#define AFR_MSG_INVALID_ARG_STR "Invalid argument"
+#define AFR_MSG_INDEX_DIR_GET_FAILED_STR "unable to get index-dir on "
+#define AFR_MSG_THIN_ARB_LOOKUP_FAILED_STR "Failed lookup on file"
+#define AFR_MSG_DICT_CREATE_FAILED_STR "Failed to create dict."
+#define AFR_MSG_THIN_ARB_XATTROP_FAILED_STR "Xattrop failed."
+#define AFR_MSG_THIN_ARB_LOC_POP_FAILED_STR                                    \
+    "Failed to populate loc for thin-arbiter"
+#define AFR_MSG_GET_PEND_VAL_STR "Error getting value of pending"
+#define AFR_MSG_THIN_ARB_SKIP_SHD_STR "I am not the god shd. skipping."
+#define AFR_MSG_UNKNOWN_SET_STR "Unknown set"
+#define AFR_MSG_NO_XL_ID_STR "xl does not have id"
+#define AFR_MSG_SELF_HEAL_INFO_START_STR "starting full sweep on"
+#define AFR_MSG_SELF_HEAL_INFO_FINISH_STR "finished full sweep on"
+#define AFR_MSG_INCRE_COUNT_STR "Could not increment the counter."
+#define AFR_MSG_ADD_TO_OUTPUT_FAILED_STR "Could not add to output"
+#define AFR_MSG_SET_TIME_FAILED_STR "Could not set time"
+#define AFR_MSG_GFID_HEAL_MSG_STR "Error setting gfid-heal-msg dict"
+#define AFR_MSG_NO_MAJORITY_TO_RESOLVE_STR                                     \
+    "No majority to resolve gfid split brain"
+#define AFR_MSG_GFID_MISMATCH_DETECTED_STR "Gfid mismatch dectected"
+#define AFR_MSG_SELF_HEAL_INFO_STR "performing selfheal"
+#define AFR_MSG_TYPE_MISMATCH_STR "TYPE mismatch"
+#define AFR_MSG_SIZE_POLICY_NOT_APPLICABLE_STR                                 \
+    "Size policy is not applicable to directories."
+#define AFR_MSG_NO_CHILD_SELECTED_STR                                          \
+    "No child selected by favorite-child policy"
+#define AFR_MSG_INVALID_CHILD_STR "Invalid child"
+#define AFR_MSG_RESOLVE_CONFLICTING_DATA_STR                                   \
+    "selected as authentic to resolve conflicting data"
+#define SERROR_GETTING_SRC_BRICK_STR "Error getting the source brick"
+#define SNO_DIFF_IN_MTIME_STR "No difference in mtime"
+#define SNO_BIGGER_FILE_STR "No bigger file"
+#define SALL_BRICKS_UP_TO_RESOLVE_STR                                          \
+    "All the bricks should be up to resolve the gfid split brain"
+#define AFR_MSG_UNLOCK_FAILED_STR "Failed to unlock"
+#define AFR_MSG_POST_OP_FAILED_STR "Post-op on thin-arbiter failed"
+#define AFR_MSG_TA_FRAME_CREATE_FAILED_STR "Failed to create ta_frame"
+#define AFR_MSG_SET_KEY_XATTROP_FAILED_STR "Could not set key during xattrop"
+#define AFR_MSG_BLOCKING_ENTRYLKS_FAILED_STR "Blocking entrylks failed"
+#define AFR_MSG_FSYNC_FAILED_STR "fsync failed"
+#define AFR_MSG_QUORUM_FAIL_STR "quorum is not met"
+#define AFR_MSG_FOP_FAILED_STR "Failing Fop"
+#define AFR_MSG_INVALID_SUBVOL_STR "not a subvolume"
+#define AFR_MSG_VOL_MISCONFIGURED_STR "Volume is dangling"
+#define AFR_MSG_CHILD_MISCONFIGURED_STR                                        \
+    "replicate translator needs more than one subvolume defined"
+#define AFR_MSG_CLEAN_UP_FAILED_STR "Failed to clean up healer threads"
+#define AFR_MSG_QUORUM_OVERRIDE_STR "overriding quorum-count"
+#define AFR_MSG_UNABLE_TO_FETCH_STR                                            \
+    "Unable to fetch afr-pending-xattr option from volfile. Falling back to "  \
+    "using client translator names"
+#define AFR_MSG_NULL_DEREF_STR "possible NULL deref"
+#define AFR_MSG_XATTR_SET_FAILED_STR "Cannot set xattr cookie key"
+#define AFR_MSG_SPLIT_BRAIN_STATUS_STR "Failed to create synctask"
+#define AFR_MSG_SUBVOLS_DOWN_STR "All subvolumes are not up"
+#define AFR_MSG_SPLIT_BRAIN_CHOICE_ERROR_STR                                   \
+    "Failed to cancel split-brain choice"
+#define AFR_MSG_SPLIT_BRAIN_REPLICA_STR                                        \
+    "Cannot set replica. File is not in data/metadata split-brain"
+#define AFR_MSG_INODE_CTX_FAILED_STR "Failed to get inode_ctx"
+#define AFR_MSG_READ_SUBVOL_ERROR_STR "no read subvols"
+#define AFR_MSG_LOCAL_CHILD_STR "selecting local read-child"
+#define AFR_MSG_LOOKUP_FAILED_STR "Failed to lookup/create thin-arbiter id file"
+#define AFR_MSG_TIMER_CREATE_FAIL_STR                                          \
+    "Cannot create timer for delayed initialization"
+#define AFR_MSG_SUBVOL_UP_STR "Subvolume came back up; going online"
+#define AFR_MSG_ALL_SUBVOLS_DOWN_STR                                           \
+    "All subvolumes are down. Going offline until atleast one of them is up"
+#define AFR_MSG_RELEASE_LOCK_FAILED_STR "Failed to release lock"
+#define AFR_MSG_INVALID_CHILD_UP_STR "Received child_up from invalid subvolume"
+#define AFR_MSG_QUORUM_MET_STR "Client-quorum is met"
+#define AFR_MSG_EXPUNGING_FILE_OR_DIR_STR "expunging file or dir"
+#define AFR_MSG_SELF_HEAL_FAILED_STR "Invalid"
+#define AFR_MSG_SPLIT_BRAIN_STR "Skipping conservative mergeon the file"
+#define AFR_MSG_CLEAR_TIME_SPLIT_BRAIN_STR "clear time split brain"
+#define AFR_MSG_READ_FAILED_STR "Failing read since good brick is down"
+#define AFR_MSG_LAUNCH_FAILED_STR "Failed to launch synctask"
+#define AFR_MSG_READ_SUBVOL_NOT_UP_STR                                         \
+    "read subvolume in this generation is not up"
+#define AFR_MSG_INTERNAL_LKS_FAILED_STR                                        \
+    "Unable to work with lk-owner while attempting fop"
+#define AFR_MSG_LOCK_XLATOR_NOT_LOADED_STR                                     \
+    "subvolume does not support locking. please load features/locks xlator "   \
+    "on server."
+#define AFR_MSG_FD_CTX_GET_FAILED_STR "unable to get fd ctx"
+#define AFR_MSG_INFO_COMMON_STR "fd not open on any subvolumes, aborting."
+#define AFR_MSG_REPLACE_BRICK_STATUS_STR "Couldn't acquire lock on any child."
+#define AFR_MSG_NEW_BRICK_STR "New brick"
+#define AFR_MSG_SPLIT_BRAIN_SET_FAILED_STR                                     \
+    "Failed to set split-brain choice to -1"
+#define AFR_MSG_SPLIT_BRAIN_DETERMINE_FAILED_STR                               \
+    "Failed to determine split-brain. Aborting split-brain-choice set"
+#define AFR_MSG_OPEN_FAIL_STR "Failed to open subvolume"
+#define AFR_MSG_SET_PEND_XATTR_STR "Set of pending xattr"
+#define AFR_MSG_INTERNAL_ATTR_STR "is an internal extended attribute"
 #endif /* !_AFR_MESSAGES_H_ */

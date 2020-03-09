@@ -85,11 +85,7 @@ $TOOL --automake --copy --force
 echo Running ${AUTOCONF}...
 $AUTOCONF
 echo Running ${AUTOMAKE}...
-$AUTOMAKE --add-missing --force-missing --copy --foreign
-
-# Run autogen in the argp-standalone sub-directory
-echo "Running autogen.sh in argp-standalone ..."
-( cd contrib/argp-standalone;./autogen.sh )
+$AUTOMAKE --add-missing --force-missing --copy
 
 # Instruct user on next steps
 echo

@@ -43,7 +43,6 @@ push_trapfunc rm -rf $ODIR
 
 TEST $CLI volume create $V0 disperse $H0:$B0/b1 $H0:$B0/b2 $H0:$B0/b3
 TEST $CLI volume start $V0
-TEST $CLI volume tier $V0 attach replica 2 $H0:$B1/b4 $H0:$B1/b5
 
 TEST setup_lvm 1
 TEST $CLI volume create $V1 $H0:$L1;
@@ -87,6 +86,16 @@ TEST positive_test $CLI get-state glusterd odir $ODIR detail
 
 TEST positive_test $CLI get-state glusterd odir $ODIR file gdstate detail
 
+TEST positive_test $CLI get-state volumeoptions
+
+TEST positive_test $CLI get-state glusterd volumeoptions
+
+TEST positive_test $CLI get-state odir $ODIR volumeoptions
+
+TEST positive_test $CLI get-state glusterd odir $ODIR volumeoptions
+
+TEST positive_test $CLI get-state glusterd odir $ODIR file gdstate volumeoptions
+
 TEST ! $CLI get-state glusterfsd odir $ODIR;
 ERRSTR=$($CLI get-state glusterfsd odir $ODIR 2>&1 >/dev/null);
 EXPECT 'glusterd' get_daemon_not_supported_part $ERRSTR;
@@ -124,6 +133,14 @@ ERRSTR=$($CLI get-state glusterd foo bar 2>&1 >/dev/null);
 EXPECT 'Problem' get_parsing_arguments_part $ERRSTR;
 
 TEST ! $CLI get-state glusterd foo bar detail;
+ERRSTR=$($CLI get-state glusterd foo bar 2>&1 >/dev/null);
+EXPECT 'Problem' get_parsing_arguments_part $ERRSTR;
+
+TEST ! $CLI get-state glusterd volumeoptions file gdstate;
+ERRSTR=$($CLI get-state glusterd foo bar 2>&1 >/dev/null);
+EXPECT 'Problem' get_parsing_arguments_part $ERRSTR;
+
+TEST ! $CLI get-state glusterd foo bar volumeoptions;
 ERRSTR=$($CLI get-state glusterd foo bar 2>&1 >/dev/null);
 EXPECT 'Problem' get_parsing_arguments_part $ERRSTR;
 

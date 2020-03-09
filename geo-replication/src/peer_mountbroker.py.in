@@ -1,4 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
+
+from __future__ import print_function
+
 import os
 from errno import EEXIST, ENOENT
 
@@ -8,6 +11,7 @@ from gluster.cliutils import (execute, Cmd, node_output_ok,
 from prettytable import PrettyTable
 
 LOG_DIR = "@localstatedir@/log/glusterfs/geo-replication-slaves"
+CLI_LOG = "@localstatedir@/log/glusterfs/cli.log"
 GEOREP_DIR = "@GLUSTERD_WORKDIR@/geo-replication"
 GLUSTERD_VOLFILE = "@GLUSTERD_VOLFILE@"
 
@@ -43,12 +47,12 @@ class MountbrokerUserMgmt(object):
             for line in f:
                 line = line.strip()
                 if line.startswith("option "):
-                    key, value = line.split(" ")[1:]
+                    key, value = line.split()[1:]
                     self._options[key] = value
                 if line.startswith("#"):
                     self.commented_lines.append(line)
 
-        for k, v in self._options.iteritems():
+        for k, v in self._options.items():
             if k.startswith("mountbroker-geo-replication."):
                 user = k.split(".")[-1]
                 self.user_volumes[user] = set(v.split(","))
@@ -59,7 +63,7 @@ class MountbrokerUserMgmt(object):
     def _get_write_data(self):
         op = "volume management\n"
         op += "    type mgmt/glusterd\n"
-        for k, v in self._options.iteritems():
+        for k, v in self._options.items():
             if k.startswith("mountbroker-geo-replication."):
                 # Users will be added seperately
                 continue
@@ -142,7 +146,7 @@ class NodeSetup(Cmd):
     # chgrp -R <grp> /var/log/glusterfs/geo-replication-slaves
     # chgrp -R <grp> /var/lib/glusterd/geo-replication
     # chmod -R 770 /var/log/glusterfs/geo-replication-slaves
-    # chmod -R 770 /var/lib/glusterd/geo-replication
+    # chmod 770 /var/lib/glusterd/geo-replication
     # mkdir -p <mnt_root>
     # chmod 0711 <mnt_root>
     # If selinux,
@@ -192,8 +196,13 @@ class NodeSetup(Cmd):
 
         execute(["chgrp", "-R", args.group, GEOREP_DIR])
         execute(["chgrp", "-R", args.group, LOG_DIR])
-        execute(["chmod", "-R", "770", GEOREP_DIR])
-        execute(["chmod", "-R", "770", args.group, LOG_DIR])
+        execute(["chgrp", args.group, CLI_LOG])
+        execute(["chmod", "770", GEOREP_DIR])
+        execute(["find", LOG_DIR, "-type", "d", "-exec", "chmod", "770", "{}",
+                 "+"])
+        execute(["find", LOG_DIR, "-type", "f", "-exec", "chmod", "660", "{}",
+                 "+"])
+        execute(["chmod", "660", CLI_LOG])
 
         m.set_mount_root_and_group(args.mount_root, args.group)
         m.save()
@@ -213,8 +222,10 @@ class CliSetup(Cmd):
     name = "setup"
 
     def args(self, parser):
-        parser.add_argument("mount_root")
-        parser.add_argument("group")
+        parser.add_argument("mount_root",
+                            help="Path to the mountbroker-root directory.")
+        parser.add_argument("group",
+                            help="Group to be used for setup.")
 
     def run(self, args):
         out = execute_in_peers("node-setup", [args.mount_root,
@@ -270,7 +281,7 @@ class CliStatus(Cmd):
 
         for p in out:
             node_data = p.output
-            if node_data == "":
+            if node_data == "" or node_data == "N/A":
                 node_data = {}
 
             users_row_data = ""
@@ -324,8 +335,10 @@ class CliAdd(Cmd):
     name = "add"
 
     def args(self, parser):
-        parser.add_argument("volume")
-        parser.add_argument("user")
+        parser.add_argument("volume",
+                            help="Volume to be added.")
+        parser.add_argument("user",
+                            help="User for which volume is to be added.")
 
     def run(self, args):
         out = execute_in_peers("node-add", [args.volume,
@@ -365,8 +378,9 @@ class CliRemove(Cmd):
     name = "remove"
 
     def args(self, parser):
-        parser.add_argument("--volume", default=".")
-        parser.add_argument("--user", default=".")
+        parser.add_argument("--volume", default=".", help="Volume to be removed.")
+        parser.add_argument("--user", default=".",
+                            help="User for which volume has to be removed.")
 
     def run(self, args):
         out = execute_in_peers("node-remove", [args.volume,

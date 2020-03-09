@@ -6,6 +6,8 @@
 . $(dirname $0)/../fileio.rc
 . $(dirname $0)/../nfs.rc
 
+#G_TESTDEF_TEST_STATUS_CENTOS6=NFS_TEST
+
 function check_readonly()
 {
     $@ 2>&1 | grep -q 'Read-only file system'
@@ -34,6 +36,7 @@ TEST glusterd;
 TEST pidof glusterd;
 
 TEST $CLI volume create $V0 $H0:$L1 $H0:$L2 $H0:$L3;
+
 TEST $CLI volume set $V0 nfs.disable false
 
 
@@ -52,6 +55,7 @@ TEST ln $M0/f1 $M0/dir/f3
 TEST $CLI snapshot config activate-on-create enable
 TEST $CLI volume set $V0 features.uss enable;
 
+TEST ! $CLI snapshot create snap1 $V0 no-timestamp description "";
 TEST $CLI snapshot create snap1 $V0 no-timestamp;
 
 for i in {11..20} ; do echo "file" > $M0/file$i ; done
@@ -371,6 +375,15 @@ TEST rm -f $M0/aaa;
 
 TEST $CLI snapshot delete snap6;
 
+# drop the caches so that, the dentry for "snap6" is
+# is forgotten from the client cache.
+drop_cache $M0
+
+EXPECT_WITHIN 30 "5" count_snaps $M0;
+
+# This should fail, as snap6 just got deleted.
+TEST ! stat $M0/.history/snap6
+
 TEST $CLI snapshot create snap6 $V0 no-timestamp
 
 TEST ls $M0/.history;
@@ -380,5 +393,29 @@ EXPECT_WITHIN 30 "6" count_snaps $M0;
 TEST ls $M0/.history/snap6/;
 
 TEST ! stat $M0/.history/snap6/aaa;
+
+TEST stat $M0
+
+# done with the tests start cleaning up of things
+TEST $CLI volume set $V0 features.uss disable
+
+TEST $CLI snapshot delete snap6;
+
+TEST $CLI snapshot delete snap5;
+
+TEST $CLI snapshot delete snap4;
+
+TEST $CLI snapshot delete snap3;
+
+TEST $CLI snapshot delete snap2;
+
+TEST $CLI snapshot delete snap1;
+
+# nfs client has been already unmounted at line 333
+EXPECT_WITHIN $UMOUNT_TIMEOUT "Y" force_umount $M0
+
+TEST $CLI volume stop $V0
+
+TEST $CLI volume delete $V0
 
 cleanup;

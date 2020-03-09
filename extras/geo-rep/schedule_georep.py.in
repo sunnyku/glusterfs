@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 """
 Schedule Geo-replication
 ------------------------
@@ -43,7 +43,7 @@ SESSION_MOUNT_LOG_FILE = ("/var/log/glusterfs/geo-replication"
                           "/schedule_georep.mount.log")
 
 USE_CLI_COLOR = True
-
+mnt_list = []
 
 class GlusterBadXmlFormat(Exception):
     """
@@ -83,13 +83,15 @@ def execute(cmd, success_msg="", failure_msg="", exitcode=-1):
     On success it can print message in stdout if specified.
     On failure, exits after writing to stderr.
     """
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     out, err = p.communicate()
     if p.returncode == 0:
         if success_msg:
             output_ok(success_msg)
         return out
     else:
+        if exitcode == 0:
+            return
         err_msg = err if err else out
         output_notok(failure_msg, err=err_msg, exitcode=exitcode)
 
@@ -112,12 +114,12 @@ def cleanup(hostname, volname, mnt):
     """
     Unmount the Volume and Remove the temporary directory
     """
-    execute(["umount", mnt],
+    execute(["umount", "-l", mnt],
             failure_msg="Unable to Unmount Gluster Volume "
             "{0}:{1}(Mounted at {2})".format(hostname, volname, mnt))
     execute(["rmdir", mnt],
             failure_msg="Unable to Remove temp directory "
-            "{0}".format(mnt))
+            "{0}".format(mnt), exitcode=0)
 
 
 @contextmanager
@@ -130,6 +132,7 @@ def glustermount(hostname, volname):
     Automatically unmounts it in case of Exceptions/out of context
     """
     mnt = tempfile.mkdtemp(prefix="georepsetup_")
+    mnt_list.append(mnt)
     execute(["@SBIN_DIR@/glusterfs",
              "--volfile-server", hostname,
              "--volfile-id", volname,
@@ -297,6 +300,7 @@ def get_summary(mastervol, slave_url):
     status_data = get(mastervol, slave_url)
 
     for session in status_data:
+        session_name = ""
         summary = {
             "active": 0,
             "passive": 0,
@@ -339,7 +343,8 @@ def get_summary(mastervol, slave_url):
         if summary["faulty"] == 0 and summary["offline"] == 0:
             summary["ok"] = True
 
-        out.append([session_name, summary, faulty_rows, down_rows])
+        if session_name != "":
+                out.append([session_name, summary, faulty_rows, down_rows])
 
     return out
 
@@ -347,7 +352,7 @@ def get_summary(mastervol, slave_url):
 def touch_mount_root(mastervol):
     # Create a Mount and Touch the Mount point root,
     # Hack to make sure some event available after
-    # setting Checkpoint. Without this their is a chance of
+    # setting Checkpoint. Without this there is a chance of
     # Checkpoint never completes.
     with glustermount("localhost", mastervol) as mnt:
         execute(["touch", mnt])
@@ -376,13 +381,13 @@ def main(args):
     output_ok("Started Geo-replication and watching Status for "
               "Checkpoint completion")
 
-    touch_mount_root(args.mastervol)
-
     start_time = int(time.time())
     duration = 0
 
     # Sleep till Geo-rep initializes
     time.sleep(60)
+
+    touch_mount_root(args.mastervol)
 
     slave_url = "{0}::{1}".format(args.slave, args.slavevol)
 
@@ -397,41 +402,39 @@ def main(args):
             # or any other error. Gluster cmd still produces XML output
             # with different message
             output_warning("Unable to get Geo-replication Status")
-            time.sleep(1)
-            continue
-
-        session_name, summary, faulty_rows, down_rows = session_summary[0]
-        chkpt_status = "COMPLETE" if summary["checkpoints_ok"] else \
-                       "NOT COMPLETE"
-        ok_status = "OK" if summary["ok"] else "NOT OK"
-
-        if summary["ok"]:
-            output_ok("All Checkpoints {1}, "
-                      "All status {2} (Turns {0:>3})".format(
-                          turns, chkpt_status, ok_status))
         else:
-            output_warning("All Checkpoints {1}, "
-                           "All status {2} (Turns {0:>3})".format(
-                               turns, chkpt_status, ok_status))
+            session_name, summary, faulty_rows, down_rows = session_summary[0]
+            chkpt_status = "COMPLETE" if summary["checkpoints_ok"] else \
+                           "NOT COMPLETE"
+            ok_status = "OK" if summary["ok"] else "NOT OK"
 
-            output_warning("Geo-rep workers Faulty/Offline, "
-                           "Faulty: {0} Offline: {1}".format(
-                               repr(faulty_rows),
-                               repr(down_rows)))
+            if summary["ok"]:
+                output_ok("All Checkpoints {1}, "
+                          "All status {2} (Turns {0:>3})".format(
+                              turns, chkpt_status, ok_status))
+            else:
+                output_warning("All Checkpoints {1}, "
+                               "All status {2} (Turns {0:>3})".format(
+                                   turns, chkpt_status, ok_status))
 
-        if summary["checkpoints_ok"]:
-            output_ok("Stopping Geo-replication session now")
-            cmd = ["@SBIN_DIR@/gluster", "volume", "geo-replication",
-                   args.mastervol,
-                   "%s::%s" % (args.slave, args.slavevol), "stop"]
-            execute(cmd)
-            break
-        else:
-            # If Checkpoint is not complete after a iteration means brick
-            # was down and came online now. SETATTR on mount is not
-            # recorded, So again issue touch on mount root So that
-            # Stime will increase and Checkpoint will complete.
-            touch_mount_root(args.mastervol)
+                output_warning("Geo-rep workers Faulty/Offline, "
+                               "Faulty: {0} Offline: {1}".format(
+                                   repr(faulty_rows),
+                                   repr(down_rows)))
+
+            if summary["checkpoints_ok"]:
+                output_ok("Stopping Geo-replication session now")
+                cmd = ["@SBIN_DIR@/gluster", "volume", "geo-replication",
+                       args.mastervol,
+                       "%s::%s" % (args.slave, args.slavevol), "stop"]
+                execute(cmd)
+                break
+            else:
+                # If Checkpoint is not complete after a iteration means brick
+                # was down and came online now. SETATTR on mount is not
+                # recorded, So again issue touch on mount root So that
+                # Stime will increase and Checkpoint will complete.
+                touch_mount_root(args.mastervol)
 
         # Increment the turns and Sleep for 10 sec
         turns += 1
@@ -446,13 +449,18 @@ def main(args):
 
         time.sleep(args.interval)
 
+    for mnt in mnt_list:
+        execute(["rmdir", mnt],
+                failure_msg="Unable to Remove temp directory "
+                "{0}".format(mnt), exitcode=0)
+
 if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=RawDescriptionHelpFormatter,
                             description=__doc__)
     parser.add_argument("mastervol", help="Master Volume Name")
     parser.add_argument("slave",
-                        help="SLAVEHOST or root@SLAVEHOST "
-                        "or user@SLAVEHOST",
+                        help="Slave hostname "
+                        "(<username>@SLAVEHOST or SLAVEHOST)",
                         metavar="SLAVE")
     parser.add_argument("slavevol", help="Slave Volume Name")
     parser.add_argument("--interval", help="Interval in Seconds. "
@@ -462,12 +470,23 @@ if __name__ == "__main__":
                         "stop Geo-replication if Checkpoint is not complete "
                         "in the specified timeout time", type=int,
                         default=0)
-    parser.add_argument("--no-color", help="Use Color in CLI output",
+    parser.add_argument("--no-color", help="Don't use Color in CLI output",
                         action="store_true")
     args = parser.parse_args()
     if args.no_color:
         USE_CLI_COLOR = False
     try:
+        # Check for session existence
+        cmd = ["@SBIN_DIR@/gluster", "volume", "geo-replication",
+               args.mastervol, "%s::%s" % (args.slave, args.slavevol), "status"]
+        execute(cmd)
         main(args)
     except KeyboardInterrupt:
+        for mnt in mnt_list:
+            execute(["umount", "-l", mnt],
+                    failure_msg="Unable to Unmount Gluster Volume "
+                    "Mounted at {0}".format(mnt), exitcode=0)
+            execute(["rmdir", mnt],
+                    failure_msg="Unable to Remove temp directory "
+                    "{0}".format(mnt), exitcode=0)
         output_notok("Exiting...")

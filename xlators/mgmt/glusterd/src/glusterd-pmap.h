@@ -11,40 +11,47 @@
 #define _GLUSTERD_PMAP_H_
 
 #include <pthread.h>
-#include "compat-uuid.h"
+#include <glusterfs/compat-uuid.h>
 
-#include "glusterfs.h"
-#include "xlator.h"
-#include "logging.h"
-#include "call-stub.h"
-#include "fd.h"
-#include "byte-order.h"
-#include "glusterd.h"
+#include <glusterfs/glusterfs.h>
+#include <glusterfs/xlator.h>
+#include <glusterfs/logging.h>
+#include <glusterfs/call-stub.h>
+#include <glusterfs/byte-order.h>
 #include "rpcsvc.h"
 
-
 struct pmap_port_status {
-        gf_pmap_port_type_t type;
-        char  *brickname;
-        void  *xprt;
+    char *brickname;
+    void *xprt;
+    gf_pmap_port_type_t type;
 };
 
 struct pmap_registry {
-        int     base_port;
-        int     last_alloc;
-        struct  pmap_port_status ports[65536];
+    struct pmap_port_status ports[GF_PORT_MAX + 1];
+    int base_port;
+    int max_port;
+    int last_alloc;
 };
 
-int pmap_assign_port (xlator_t *this, int port, const char *path);
-int pmap_mark_port_leased (xlator_t *this, int port);
-int pmap_registry_alloc (xlator_t *this);
-int pmap_registry_bind (xlator_t *this, int port, const char *brickname,
-                        gf_pmap_port_type_t type, void *xprt);
-int pmap_registry_extend (xlator_t *this, int port, const char *brickname);
-int pmap_registry_remove (xlator_t *this, int port, const char *brickname,
-                          gf_pmap_port_type_t type, void *xprt);
-int pmap_registry_search (xlator_t *this, const char *brickname,
-                          gf_pmap_port_type_t type, gf_boolean_t destroy);
-struct pmap_registry *pmap_registry_get (xlator_t *this);
+int
+pmap_assign_port(xlator_t *this, int port, const char *path);
+int
+pmap_mark_port_leased(xlator_t *this, int port);
+int
+pmap_registry_alloc(xlator_t *this);
+int
+pmap_registry_bind(xlator_t *this, int port, const char *brickname,
+                   gf_pmap_port_type_t type, void *xprt);
+int
+pmap_registry_extend(xlator_t *this, int port, const char *brickname);
+int
+pmap_registry_remove(xlator_t *this, int port, const char *brickname,
+                     gf_pmap_port_type_t type, void *xprt,
+                     gf_boolean_t brick_disconnect);
+int
+pmap_registry_search(xlator_t *this, const char *brickname,
+                     gf_pmap_port_type_t type, gf_boolean_t destroy);
+struct pmap_registry *
+pmap_registry_get(xlator_t *this);
 
 #endif

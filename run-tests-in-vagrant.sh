@@ -23,10 +23,25 @@ popd () {
     command popd "$@" >/dev/null
 }
 
+usage() {
+    echo "Usage: $0 [...]"
+    echo ''
+    echo 'The options that this script accepts are:'
+    echo ''
+    echo '-a, --autostart        configure the testVM to autostart on boot'
+    echo '--destroy-now          cleanup the testVM'
+    echo '--destroy-after-test   cleanup once the tests finishes'
+    echo '-h, --help             show this help text'
+    echo '--os=<flavor>          select the OS for the testVM (fedora, centos6)'
+    echo '--ssh                  ssh into the testVM'
+    echo '--verbose              show what commands in the testVM are executed'
+    echo ''
+}
+
 function parse_args () {
     args=`getopt \
-              --options a \
-              --long autostart,os:,destroy-now,destroy-after-test,verbose,ssh \
+              --options ah \
+              --long autostart,os:,destroy-now,destroy-after-test,verbose,ssh,help \
               -n 'run-tests-in-vagrant.sh' \
               --  "$@"`
     eval set -- "$args"
@@ -35,6 +50,7 @@ function parse_args () {
             -a|--autostart) autostart="yes"; shift ;;
             --destroy-after-test) destroy_after_test="yes"; shift ;;
             --destroy-now)  destroy_now="yes"; shift ;;
+            -h|--help) usage ; exit 0 ;;
             --ssh)  sshvm="yes"; shift ;;
             --os)
                 case "$2" in
@@ -95,8 +111,10 @@ function set_branchname_from_git_branch()
 }
 
 
-function destroy_vm_and_exit()
+function destroy_vm()
 {
+    local retval=0
+
     echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!CAUTION!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     echo "This will destroy VM and delete tests/vagrant/${BRANCHNAME} dir"
     echo
@@ -112,11 +130,12 @@ function destroy_vm_and_exit()
         eval vagrant destroy $redirect
         popd
         rm -rf "tests/vagrant/${BRANCHNAME}"
-        exit 0
     else
         echo "Could not find vagrant dir for corresponding git branch, exiting"
-        exit 1
+        retval=1
     fi
+
+    return ${retval}
 }
 
 
@@ -212,6 +231,7 @@ function compile_gluster()
             --mandir=/usr/share/man \
             --infodir=/usr/share/info \
             --libdir=/usr/lib64 \
+            --enable-gnfs \
             --enable-debug $redirect" -- -t
     if [ $? -ne 0 ]
     then
@@ -219,6 +239,10 @@ function compile_gluster()
             popd
             exit 1
     fi
+    # Test for missing dependencies based on the BuildRequires in the
+    # glusterfs.spec. If anything is missing, install them (and only then, dnf
+    # cache is a large download).
+    vagrant ssh -c "cd /home/vagrant/glusterfs; ( sudo dnf -C -y builddep --spec glusterfs.spec || sudo dnf -y builddep --spec glusterfs.spec ) $redirect" -- -t
     vagrant ssh -c "cd /home/vagrant/glusterfs; sudo make -j install $redirect" -- -t
     if [ $? -ne 0 ]
     then
@@ -231,9 +255,14 @@ function compile_gluster()
 
 function run_tests()
 {
+    local retval=0
+
     pushd "tests/vagrant/${BRANCHNAME}"
     vagrant ssh -c "cd /home/vagrant/glusterfs; sudo ./run-tests.sh $run_tests_args" -- -t
+    retval=$?
     popd
+
+    return ${retval}
 }
 
 function ssh_into_vm_using_exec()
@@ -255,7 +284,8 @@ ansible_check
 set_branchname_from_git_branch
 
 if [ "x$destroy_now" == "xyes" ] ; then
-    destroy_vm_and_exit
+    destroy_vm
+    exit $?
 fi
 
 if [ "x$sshvm" == "xyes" ] ; then
@@ -272,7 +302,10 @@ set_vm_attributes
 copy_source_code
 compile_gluster
 run_tests
+RET=$?
 
 if [ "x$destroy_after_test" == "xyes" ] ; then
-    destroy_vm_and_exit
+    destroy_vm
 fi
+
+exit ${RET}

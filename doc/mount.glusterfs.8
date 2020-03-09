@@ -12,11 +12,11 @@
 .SH NAME
 .B mount.glusterfs - script to mount native GlusterFS volume
 .SH SYNOPSIS
-.B mount -t glusterfs [-o <options>] <volumeserver>:/<volume>
+.B mount -t glusterfs [-o <options>] <volumeserver>:/<volume>[/<subdir>]
 .B         <mountpoint>
 .TP
 .B mount -t glusterfs [-o <options>] <server1>,<server2>,
-.B        <server3>,..<serverN>:/<volname> <mount_point>
+.B        <server3>,..<serverN>:/<volname>[/<subdir>] <mount_point>
 .TP
 .TP
 .B mount -t glusterfs [-o <options>] <path/to/volumefile> <mountpoint>
@@ -44,8 +44,8 @@ INFO and NONE [default: INFO]
 \fBacl
 Mount the filesystem with POSIX ACL support
 .TP
-\fBfopen\-keep\-cache
-Do not purge the cache on file open
+\fBfopen\-keep\-cache[=BOOL]
+Do not purge the cache on file open (default: false)
 .TP
 \fBworm
 Mount the filesystem in 'worm' mode
@@ -65,6 +65,9 @@ Enable internal memory accounting
 .TP
 \fBcapability
 Enable file capability setting and retrival
+.TP
+\fBthin-client
+Enables thin mount and connects via gfproxyd daemon
 
 .PP
 .SS "Advanced options"
@@ -89,11 +92,14 @@ Set negative timeout to SECONDS in fuse kernel module [default: 0]
 Volume name to be used for MOUNT-POINT [default: top most volume in
 VOLUME-FILE]
 .TP
-\fBdirect\-io\-mode=\fRdisable
-Disable direct I/O mode in fuse kernel module
+\fBdirect\-io\-mode=\fRBOOL|auto
+Specify fuse direct I/O strategy [default: auto]
 .TP
 \fBcongestion\-threshold=\fRN
 Set fuse module's congestion threshold to N [default: 48]
+.TP
+\fsubdir\-mount=\fRN
+Set the subdirectory mount option [default: NULL, ie, no subdirectory mount]
 .TP
 .TP
 \fBbackup\-volfile\-servers=\fRSERVERLIST
@@ -116,6 +122,15 @@ Provide list of backup volfile servers in the following format [default: None]
 \fBDeprecated\fR option - placed here for backward compatibility [default: 1]
 .TP
 .TP
+\fBlru-limit=\fRN
+Set fuse module's limit for number of inodes kept in LRU list to N [default: 65536]
+.TP
+.TP
+\fBinvalidate-limit=\fRN
+Suspend fuse invalidations implied by 'lru-limit' if  number of outstanding
+invalidations reaches N
+.TP
+.TP
 \fBbackground-qlen=\fRN
 Set fuse module's background queue length to N [default: 64]
 .TP
@@ -127,6 +142,20 @@ enable root squashing for the trusted client [default: on]
 .TP
 \fBuse\-readdirp=\fRBOOL
 Use readdirp() mode in fuse kernel module [default: on]
+.TP
+\fBdump\-fuse=\fRPATH
+Dump fuse traffic to PATH
+.TP
+\fBkernel\-writeback\-cache=\fRBOOL
+Enable fuse in-kernel writeback cache [default: off]
+.TP
+\fBattr\-times\-granularity=\fRNS
+Declare supported granularity of file attribute [default: 0]
+.TP
+\fBauto\-invalidation=\fRBOOL
+controls whether fuse-kernel can auto-invalidate attribute, dentry and
+page-cache. Disable this only if same files/directories are not
+accessed across two different mounts concurrently [default: on]
 .PP
 .SH FILES
 .TP

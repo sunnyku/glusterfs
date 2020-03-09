@@ -10,1129 +10,387 @@
 #ifndef _DHT_MESSAGES_H_
 #define _DHT_MESSAGES_H_
 
-#include "glfs-message-id.h"
+#include <glusterfs/glfs-message-id.h>
 
-/*! \file dht-messages.h
- *  \brief DHT log-message IDs and their descriptions
+/* To add new message IDs, append new identifiers at the end of the list.
  *
- */
-
-/* NOTE: Rules for message additions
- * 1) Each instance of a message is _better_ left with a unique message ID, even
- *    if the message format is the same. Reasoning is that, if the message
- *    format needs to change in one instance, the other instances are not
- *    impacted or the new change does not change the ID of the instance being
- *    modified.
- * 2) Addition of a message,
- *       - Should increment the GLFS_NUM_MESSAGES
- *       - Append to the list of messages defined, towards the end
- *       - Retain macro naming as glfs_msg_X (for redability across developers)
- * NOTE: Rules for message format modifications
- * 3) Check acorss the code if the message ID macro in question is reused
- *    anywhere. If reused then then the modifications should ensure correctness
- *    everywhere, or needs a new message ID as (1) above was not adhered to. If
- *    not used anywhere, proceed with the required modification.
- * NOTE: Rules for message deletion
- * 4) Check (3) and if used anywhere else, then cannot be deleted. If not used
- *    anywhere, then can be deleted, but will leave a hole by design, as
- *    addition rules specify modification to the end of the list and not filling
- *    holes.
- */
-
-#define GLFS_DHT_BASE                   GLFS_MSGID_COMP_DHT
-#define GLFS_DHT_NUM_MESSAGES           125
-#define GLFS_MSGID_END          (GLFS_DHT_BASE + GLFS_DHT_NUM_MESSAGES + 1)
-
-/* Messages with message IDs */
-#define glfs_msg_start_x GLFS_DHT_BASE, "Invalid: Start of messages"
-
-
-
-
-/*!
- * @messageid 109001
- * @diagnosis   Cached subvolume could not be found for the specified
- *              path
- * @recommendedaction  None
+ * Never remove a message ID. If it's not used anymore, you can rename it or
+ * leave it as it is, but not delete it. This is to prevent reutilization of
+ * IDs by other messages.
  *
- */
-
-#define DHT_MSG_CACHED_SUBVOL_GET_FAILED        (GLFS_DHT_BASE + 1)
-
-/*!
- * @messageid 109002
- * @diagnosis Linkfile creation failed
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_CREATE_LINK_FAILED      (GLFS_DHT_BASE + 2)
-
-/*!
- * @messageid 109003
- * @diagnosis The value could not be set for the specified key in
- *       the dictionary
- *
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_DICT_SET_FAILED         (GLFS_DHT_BASE + 3)
-
-/*!
- * @messageid 109004
- * @diagnosis Directory attributes could not be healed
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_DIR_ATTR_HEAL_FAILED    (GLFS_DHT_BASE + 4)
-
-/*!
- * @messageid 109005
- * @diagnosis Self-heal failed for the specified directory
- * @recommendedaction  Ensure that all subvolumes are online
- *              and reachable and perform a lookup operation
- *              on the directory again.
- *
- */
-
-#define DHT_MSG_DIR_SELFHEAL_FAILED     (GLFS_DHT_BASE + 5)
-
-/*!
- * @messageid 109006
- * @diagnosis The extended attributes could not be healed for
- *            the specified directory on the specified subvolume
- *
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_DIR_SELFHEAL_XATTR_FAILED       (GLFS_DHT_BASE + 6)
-
-/*!
- * @messageid 109007
- * @diagnosis   A lookup operation found the file with the same path
- *      on multiple subvolumes.
- * @recommendedaction
- *      1. Create backups of the file on other subvolumes.
- *      2. Inspect the content of the files to identify
- *                      and retain the most appropriate file.
- *
- */
-
-#define DHT_MSG_FILE_ON_MULT_SUBVOL     (GLFS_DHT_BASE + 7)
-
-/*!
- * @messageid 109008
- * @diagnosis A path resolves to a file on one subvolume and a directory
- *             on another
- * @recommendedaction
- *              1. Create a backup of the file with a different name
- *              and delete the original file.
- *              2. In the newly created back up file, remove the "trusted.gfid"
- *                      extended attribute.
- *                - Command: setfattr -x "trusted.gfid" \<path to the newly created backup file\>
- *              3. Perform a new lookup operation on both the new and old paths.
- *              4. From the mount point, inspect both the paths and retain the
- *              relevant file or directory.
- *
- */
-
-#define DHT_MSG_FILE_TYPE_MISMATCH      (GLFS_DHT_BASE + 8)
-
-/*!
- * @messageid 109009
- * @diagnosis The GFID of the file/directory is different on different subvolumes
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_GFID_MISMATCH           (GLFS_DHT_BASE + 9)
-
-/*!
- * @messageid 109010
- * @diagnosis The GFID of the specified file/directory is NULL.
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_GFID_NULL               (GLFS_DHT_BASE + 10)
-
-/*
- * @messageid 109011
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_HASHED_SUBVOL_GET_FAILED   (GLFS_DHT_BASE + 11)
-
-/*!
- * @messageid 109012
- * @diagnosis The Distributed Hash Table Translator could not be initiated as the
- *            system is out of memory.
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_INIT_FAILED             (GLFS_DHT_BASE + 12)
-
-/*!
- * @messageid 109013
- * @diagnosis Invalid DHT configuration in the volfile
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_INVALID_CONFIGURATION   (GLFS_DHT_BASE + 13)
-
-/*!
- * @messageid 109014
- * @diagnosis Invalid disk layout
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_INVALID_DISK_LAYOUT     (GLFS_DHT_BASE + 14)
-
-/*!
- * @messageid 109015
- * @diagnosis Invalid DHT configuration option.
- * @recommendedaction
- *              1. Reset the option with a valid value using the volume
- *                set command.
- *              2. Restart the process that logged the message in the
- *                log file.
- *
- */
-
-#define DHT_MSG_INVALID_OPTION          (GLFS_DHT_BASE + 15)
-
-/*!
- * @messageid 109016
- * @diagnosis The fix layout operation failed
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_LAYOUT_FIX_FAILED       (GLFS_DHT_BASE + 16)
-
-/*!
- * @messageid 109017
- * @diagnosis Layout merge failed
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_LAYOUT_MERGE_FAILED     (GLFS_DHT_BASE + 17)
-
-/*!
- * @messageid 109018
- * @diagnosis The layout for the specified directory does not match
-                that on the disk.
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_LAYOUT_MISMATCH         (GLFS_DHT_BASE + 18)
-
-/*!
- * @messageid 109019
- * @diagnosis No layout is present for the specified file/directory
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_LAYOUT_NULL             (GLFS_DHT_BASE + 19)
-
-/*!
- * @messageid 109020
- * @diagnosis Informational message: Migration of data from the cached
- *      subvolume to the hashed subvolume is complete
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_MIGRATE_DATA_COMPLETE   (GLFS_DHT_BASE + 20)
-
-/*!
- * @messageid 109021
- * @diagnosis Migration of data failed during the rebalance operation
- *     \n Cause: Directories could not be read to identify the files for the
- *             migration process.
- * @recommendedaction
- *             The log message would indicate the reason for the failure and
- *             the corrective action depends on the specific error that is
- *             encountered. The error is one of the standard UNIX errors.
- *
- */
-
-#define DHT_MSG_MIGRATE_DATA_FAILED     (GLFS_DHT_BASE + 21)
-
-/*!
- * @messageid 109022
- * @diagnosis Informational message: The file was migrated successfully during
- *              the rebalance operation.
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_MIGRATE_FILE_COMPLETE   (GLFS_DHT_BASE + 22)
-
-/*!
- * @messageid 109023
- * @diagnosis File migration failed during the rebalance operation
- *            \n Cause: Rebalance moves data from the cached subvolume to
- *            the hashed subvolume. Migrating a single file is a multi-step operation
- *            which involves opening, reading, and writing the data and metadata.
- *            Any failures in this multi-step operation can result in a file
- *            migration failure.
- * @recommendedaction  The log message would indicate the reason for the failure and the
- *              corrective action depends on the specific error that is encountered.
- *              The error is one of the standard UNIX errors.
- *
- */
-
-#define DHT_MSG_MIGRATE_FILE_FAILED     (GLFS_DHT_BASE + 23)
-
-/*!
- * @messageid 109024
- * @diagnosis Out of memory
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_NO_MEMORY               (GLFS_DHT_BASE + 24)
-
-/*!
- * @messageid 109025
- * @diagnosis  The opendir() call failed on the specified directory
- *              \n Cause: When a directory is renamed, the Distribute Hash
- *              table translator checks whether the destination directory
- *              is empty. This message indicates that the opendir() call
- *              on the destination directory has failed.
- * @recommendedaction The log message would indicate the reason for the
- *              failure and the corrective action depends on the specific
- *              error that is encountered. The error is one of the standard
- *              UNIX errors.
- *
- */
-
-#define DHT_MSG_OPENDIR_FAILED          (GLFS_DHT_BASE + 25)
-
-/*!
- * @messageid 109026
- * @diagnosis The rebalance operation failed.
- * @recommendedaction Check the log file for details about the failure.
- *     Possible causes:
- *     - A subvolume is down: Restart the rebalance operation after
- *             bringing up all subvolumes.
- *
- */
-
-#define DHT_MSG_REBALANCE_FAILED        (GLFS_DHT_BASE + 26)
-
-/*!
- * @messageid 109027
- * @diagnosis Failed to start the rebalance process.
- * @recommendedaction Check the log file for details about the failure.
- *
- */
-
-#define DHT_MSG_REBALANCE_START_FAILED  (GLFS_DHT_BASE + 27)
-
-/*!
- * @messageid 109028
- * @diagnosis Informational message that indicates the status of the
- *            rebalance operation and details as to how many files were
- *            migrated, skipped, failed etc
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_REBALANCE_STATUS        (GLFS_DHT_BASE + 28)
-
-/*!
- * @messageid 109029
- * @diagnosis The rebalance operation was aborted by the user.
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_REBALANCE_STOPPED       (GLFS_DHT_BASE + 29)
-
-/*!
- * @messageid 109030
- * @diagnosis The file or directory could not be renamed
- * @recommendedaction   Ensure that all the subvolumes are
- *                      online and reachable and try renaming
- *                      the file or directory again.
- *
- */
-
-#define DHT_MSG_RENAME_FAILED           (GLFS_DHT_BASE + 30)
-
-/*!
- * @messageid 109031
- * @diagnosis Attributes could not be set for the specified file or
- *             directory.
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_SETATTR_FAILED          (GLFS_DHT_BASE + 31)
-
-/*!
- * @messageid 109032
- * @diagnosis The specified subvolume is running out of file system inodes.
-        If all subvolumes run out of inodes, then new files cannot be created.
- * @recommendedaction  Consider adding more nodes to the cluster if all subvolumes
- *        run out of inodes
- *
- */
-
-#define DHT_MSG_SUBVOL_INSUFF_INODES    (GLFS_DHT_BASE + 32)
-
-/*!
- * @messageid 109033
- * @diagnosis The specified subvolume is running out of disk space. If all
-              subvolumes run out of space, new files cannot be created.
- * @recommendedaction  Consider adding more bricks to the cluster if all subvolumes
- *              run out of disk space.
- *
- */
-
-#define DHT_MSG_SUBVOL_INSUFF_SPACE    (GLFS_DHT_BASE + 33)
-
-/*!
- * @messageid 109034
- * @diagnosis Failed to unlink the specified file/directory
- * @recommendedaction  The log message would indicate the reason
-              for the failure and the corrective action depends on
-              the specific error that is encountered.
- */
-
-#define DHT_MSG_UNLINK_FAILED           (GLFS_DHT_BASE + 34)
-
-
-
-/*!
- * @messageid 109035
- * @diagnosis The layout information could not be set in the inode
- * @recommendedaction  None
- *
- */
-
-#define DHT_MSG_LAYOUT_SET_FAILED       (GLFS_DHT_BASE + 35)
-
-/*!
- * @messageid 109036
- * @diagnosis Informational message regarding layout range distribution
- *            for a directory across subvolumes
- * @recommendedaction None
- */
-
-#define DHT_MSG_LOG_FIXED_LAYOUT        (GLFS_DHT_BASE + 36)
-
-/*
- * @messageid 109037
- * @diagnosis Informational message regarding error in tier operation
- * @recommendedaction None
- */
-
-#define DHT_MSG_LOG_TIER_ERROR          (GLFS_DHT_BASE + 37)
-
-/*
- * @messageid 109038
- * @diagnosis Informational message regarding tier operation
- * @recommendedaction None
- */
-
-#define DHT_MSG_LOG_TIER_STATUS         (GLFS_DHT_BASE + 38)
-
-/*
- * @messageid 109039
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_GET_XATTR_FAILED        (GLFS_DHT_BASE + 39)
-
-/*
- * @messageid 109040
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_FILE_LOOKUP_FAILED      (GLFS_DHT_BASE + 40)
-
-/*
- * @messageid 109041
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_OPEN_FD_FAILED          (GLFS_DHT_BASE + 41)
-
-/*
- * @messageid 109042
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SET_INODE_CTX_FAILED    (GLFS_DHT_BASE + 42)
-
-/*
- * @messageid 109043
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_UNLOCKING_FAILED        (GLFS_DHT_BASE + 43)
-
-/*
- * @messageid 109044
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_DISK_LAYOUT_NULL        (GLFS_DHT_BASE + 44)
-
-/*
- * @messageid 109045
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SUBVOL_INFO             (GLFS_DHT_BASE + 45)
-
-/*
- * @messageid 109046
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_CHUNK_SIZE_INFO         (GLFS_DHT_BASE + 46)
-
-/*
- * @messageid 109047
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_LAYOUT_FORM_FAILED      (GLFS_DHT_BASE + 47)
-
-/*
- * @messageid 109048
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SUBVOL_ERROR            (GLFS_DHT_BASE + 48)
-
-/*
- * @messageid 109049
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_LAYOUT_SORT_FAILED      (GLFS_DHT_BASE + 49)
-
-/*
- * @messageid 109050
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_REGEX_INFO              (GLFS_DHT_BASE + 50)
-
-/*
- * @messageid 109051
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_FOPEN_FAILED            (GLFS_DHT_BASE + 51)
-
-/*
- * @messageid 109052
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SET_HOSTNAME_FAILED     (GLFS_DHT_BASE + 52)
-
-/*
- * @messageid 109053
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_BRICK_ERROR             (GLFS_DHT_BASE + 53)
-
-/*
- * @messageid 109054
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SYNCOP_FAILED           (GLFS_DHT_BASE + 54)
-
-/*
- * @messageid 109055
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_MIGRATE_INFO            (GLFS_DHT_BASE + 55)
-
-/*
- * @messageid 109056
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SOCKET_ERROR            (GLFS_DHT_BASE + 56)
-
-/*
- * @messageid 109057
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_CREATE_FD_FAILED        (GLFS_DHT_BASE + 57)
-
-/*
- * @messageid 109058
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_READDIR_ERROR           (GLFS_DHT_BASE + 58)
-
-/*
- * @messageid 109059
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_CHILD_LOC_BUILD_FAILED  (GLFS_DHT_BASE + 59)
-
-/*
- * @messageid 109060
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SET_SWITCH_PATTERN_ERROR    (GLFS_DHT_BASE + 60)
-
-/*
- * @messageid 109061
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_COMPUTE_HASH_FAILED     (GLFS_DHT_BASE + 61)
-
-/*
- * @messageid 109062
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_FIND_LAYOUT_ANOMALIES_ERROR     (GLFS_DHT_BASE + 62)
-
-/*
- * @messageid 109063
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_ANOMALIES_INFO          (GLFS_DHT_BASE + 63)
-
-/*
- * @messageid 109064
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_LAYOUT_INFO             (GLFS_DHT_BASE + 64)
-
-/*
- * @messageid 109065
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_INODE_LK_ERROR          (GLFS_DHT_BASE + 65)
-
-/*
- * @messageid 109066
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_RENAME_INFO             (GLFS_DHT_BASE + 66)
-
-/*
- * @messageid 109067
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_DATA_NULL               (GLFS_DHT_BASE + 67)
-
-/*
- * @messageid 109068
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_AGGREGATE_QUOTA_XATTR_FAILED   (GLFS_DHT_BASE + 68)
-
-/*
- * @messageid 109069
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_UNLINK_LOOKUP_INFO      (GLFS_DHT_BASE + 69)
-
-/*
- * @messageid 109070
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_LINK_FILE_LOOKUP_INFO   (GLFS_DHT_BASE + 70)
-
-/*
- * @messageid 109071
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_OPERATION_NOT_SUP       (GLFS_DHT_BASE + 71)
-
-/*
- * @messageid 109072
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_NOT_LINK_FILE_ERROR     (GLFS_DHT_BASE + 72)
-
-/*
- * @messageid 109073
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_CHILD_DOWN              (GLFS_DHT_BASE + 73)
-
-/*
- * @messageid 109074
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_UUID_PARSE_ERROR        (GLFS_DHT_BASE + 74)
-
-/*
- * @messageid 109075
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_GET_DISK_INFO_ERROR     (GLFS_DHT_BASE + 75)
-
-/*
- * @messageid 109076
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_INVALID_VALUE           (GLFS_DHT_BASE + 76)
-
-/*
- * @messageid 109077
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SWITCH_PATTERN_INFO     (GLFS_DHT_BASE + 77)
-
-/*
- * @messageid 109078
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SUBVOL_OP_FAILED        (GLFS_DHT_BASE + 78)
-
-/*
- * @messageid 109079
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_LAYOUT_PRESET_FAILED    (GLFS_DHT_BASE + 79)
-
-/*
- * @messageid 109080
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_INVALID_LINKFILE        (GLFS_DHT_BASE + 80)
-
-/*
- * @messageid 109081
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_FIX_LAYOUT_INFO         (GLFS_DHT_BASE + 81)
-
-/*
- * @messageid 109082
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_GET_HOSTNAME_FAILED     (GLFS_DHT_BASE + 82)
-
-/*
- * @messageid 109083
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_WRITE_FAILED            (GLFS_DHT_BASE + 83)
-
-/*
- * @messageid 109084
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_MIGRATE_HARDLINK_FILE_FAILED (GLFS_DHT_BASE + 84)
-
-/*
- * @messageid 109085
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_FSYNC_FAILED            (GLFS_DHT_BASE + 85)
-
-/*
- * @messageid 109086
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SUBVOL_DECOMMISSION_INFO (GLFS_DHT_BASE + 86)
-
-/*
- * @messageid 109087
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_BRICK_QUERY_FAILED      (GLFS_DHT_BASE + 87)
-
-/*
- * @messageid 109088
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SUBVOL_NO_LAYOUT_INFO   (GLFS_DHT_BASE + 88)
-
-/*
- * @messageid 109089
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_OPEN_FD_ON_DST_FAILED   (GLFS_DHT_BASE + 89)
-
-/*
- * @messageid 109090
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SUBVOL_NOT_FOUND        (GLFS_DHT_BASE + 90)
-
-/*
- * @messageid 109190
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_FILE_LOOKUP_ON_DST_FAILED   (GLFS_DHT_BASE + 91)
-
-/*
- * @messageid 109092
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_DISK_LAYOUT_MISSING     (GLFS_DHT_BASE + 92)
-
-/*
- * @messageid 109093
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_DICT_GET_FAILED         (GLFS_DHT_BASE + 93)
-
-/*
- * @messageid 109094
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_REVALIDATE_CBK_INFO     (GLFS_DHT_BASE + 94)
-
-/*
- * @messageid 109095
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_UPGRADE_BRICKS         (GLFS_DHT_BASE + 95)
-
-/*
- * @messageid 109096
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_LK_ARRAY_INFO           (GLFS_DHT_BASE + 96)
-
-/*
- * @messageid 109097
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_RENAME_NOT_LOCAL        (GLFS_DHT_BASE + 97)
-
-/*
- * @messageid 109098
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_RECONFIGURE_INFO        (GLFS_DHT_BASE + 98)
-
-/*
- * @messageid 109099
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_INIT_LOCAL_SUBVOL_FAILED        (GLFS_DHT_BASE + 99)
-
-/*
- * @messageid 109100
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SYS_CALL_GET_TIME_FAILED        (GLFS_DHT_BASE + 100)
-
-/*
- * @messageid 109101
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_NO_DISK_USAGE_STATUS    (GLFS_DHT_BASE + 101)
-
-/*
- * @messageid 109102
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SUBVOL_DOWN_ERROR       (GLFS_DHT_BASE + 102)
-
-/*
- * @messageid 109103
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_REBAL_THROTTLE_INFO       (GLFS_DHT_BASE + 103)
-
-/*
- * @messageid 109104
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_COMMIT_HASH_INFO       (GLFS_DHT_BASE + 104)
-
-/*
- * @messageid 109105
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_REBAL_STRUCT_SET       (GLFS_DHT_BASE + 105)
-
-/*
- * @messageid 109106
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_HAS_MIGINFO             (GLFS_DHT_BASE + 106)
-
-/*
- * @messageid 109107
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_LOG_IPC_TIER_ERROR      (GLFS_DHT_BASE + 107)
-
-/*
- * @messageid 109108
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_TIER_PAUSED             (GLFS_DHT_BASE + 108)
-
-/*
- * @messageid 109109
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_TIER_RESUME             (GLFS_DHT_BASE + 109)
-
-
-/* @messageid 109110
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_SETTLE_HASH_FAILED       (GLFS_DHT_BASE + 110)
-
-/*
- * @messageid 109111
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_DEFRAG_PROCESS_DIR_FAILED    (GLFS_DHT_BASE + 111)
-
-/*
- * @messageid 109112
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_FD_CTX_SET_FAILED         (GLFS_DHT_BASE + 112)
-
-/*
- * @messageid 109113
- * @diagnosis
- * @recommendedaction None
- */
-
-#define DHT_MSG_STALE_LOOKUP                    (GLFS_DHT_BASE + 113)
-
-/*
- * @messageid 109114
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_PARENT_LAYOUT_CHANGED  (GLFS_DHT_BASE + 114)
-
-/*
- * @messageid 109115
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_LOCK_MIGRATION_FAILED  (GLFS_DHT_BASE + 115)
-
-/*
- * @messageid 109116
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_LOCK_INODE_UNREF_FAILED  (GLFS_DHT_BASE + 116)
-
-/*
- * @messageid 109117
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_ASPRINTF_FAILED         (GLFS_DHT_BASE + 117)
-
-/*
- * @messageid 109118
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_DIR_LOOKUP_FAILED          (GLFS_DHT_BASE + 118)
-
-/*
- * @messageid 109119
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_INODELK_FAILED          (GLFS_DHT_BASE + 119)
-
-/*
- * @messageid 109120
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_LOCK_FRAME_FAILED          (GLFS_DHT_BASE + 120)
-
-/*
- * @messageid 109121
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_LOCAL_LOCK_INIT_FAILED          (GLFS_DHT_BASE + 121)
-
-/*
- * @messageid 109122
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_ENTRYLK_ERROR          (GLFS_DHT_BASE + 122)
-
-/*
- * @messageid 109123
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_INODELK_ERROR          (GLFS_DHT_BASE + 123)
-
-/*
- * @messageid 109124
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_LOC_FAILED             (GLFS_DHT_BASE + 124)
-
-/*
- * @messageid 109125
- * @diagnosis
- * @recommendedaction None
- */
-#define DHT_MSG_UNKNOWN_FOP            (GLFS_DHT_BASE + 125)
+ * The component name must match one of the entries defined in
+ * glfs-message-id.h.
+ */
+
+GLFS_MSGID(
+    DHT, DHT_MSG_CACHED_SUBVOL_GET_FAILED, DHT_MSG_CREATE_LINK_FAILED,
+    DHT_MSG_DICT_SET_FAILED, DHT_MSG_DIR_ATTR_HEAL_FAILED,
+    DHT_MSG_DIR_SELFHEAL_FAILED, DHT_MSG_DIR_SELFHEAL_XATTR_FAILED,
+    DHT_MSG_FILE_ON_MULT_SUBVOL, DHT_MSG_FILE_TYPE_MISMATCH,
+    DHT_MSG_GFID_MISMATCH, DHT_MSG_GFID_NULL, DHT_MSG_HASHED_SUBVOL_GET_FAILED,
+    DHT_MSG_INIT_FAILED, DHT_MSG_INVALID_CONFIGURATION,
+    DHT_MSG_INVALID_DISK_LAYOUT, DHT_MSG_INVALID_OPTION,
+    DHT_MSG_LAYOUT_FIX_FAILED, DHT_MSG_LAYOUT_MERGE_FAILED,
+    DHT_MSG_LAYOUT_MISMATCH, DHT_MSG_LAYOUT_NULL, DHT_MSG_MIGRATE_DATA_COMPLETE,
+    DHT_MSG_MIGRATE_DATA_FAILED, DHT_MSG_MIGRATE_FILE_COMPLETE,
+    DHT_MSG_MIGRATE_FILE_FAILED, DHT_MSG_NO_MEMORY, DHT_MSG_OPENDIR_FAILED,
+    DHT_MSG_REBALANCE_FAILED, DHT_MSG_REBALANCE_START_FAILED,
+    DHT_MSG_REBALANCE_STATUS, DHT_MSG_REBALANCE_STOPPED, DHT_MSG_RENAME_FAILED,
+    DHT_MSG_SETATTR_FAILED, DHT_MSG_SUBVOL_INSUFF_INODES,
+    DHT_MSG_SUBVOL_INSUFF_SPACE, DHT_MSG_UNLINK_FAILED,
+    DHT_MSG_LAYOUT_SET_FAILED, DHT_MSG_LOG_FIXED_LAYOUT, DHT_MSG_LOG_TIER_ERROR,
+    DHT_MSG_LOG_TIER_STATUS, DHT_MSG_GET_XATTR_FAILED,
+    DHT_MSG_FILE_LOOKUP_FAILED, DHT_MSG_OPEN_FD_FAILED,
+    DHT_MSG_SET_INODE_CTX_FAILED, DHT_MSG_UNLOCKING_FAILED,
+    DHT_MSG_DISK_LAYOUT_NULL, DHT_MSG_SUBVOL_INFO, DHT_MSG_CHUNK_SIZE_INFO,
+    DHT_MSG_LAYOUT_FORM_FAILED, DHT_MSG_SUBVOL_ERROR,
+    DHT_MSG_LAYOUT_SORT_FAILED, DHT_MSG_REGEX_INFO, DHT_MSG_FOPEN_FAILED,
+    DHT_MSG_SET_HOSTNAME_FAILED, DHT_MSG_BRICK_ERROR, DHT_MSG_SYNCOP_FAILED,
+    DHT_MSG_MIGRATE_INFO, DHT_MSG_SOCKET_ERROR, DHT_MSG_CREATE_FD_FAILED,
+    DHT_MSG_READDIR_ERROR, DHT_MSG_CHILD_LOC_BUILD_FAILED,
+    DHT_MSG_SET_SWITCH_PATTERN_ERROR, DHT_MSG_COMPUTE_HASH_FAILED,
+    DHT_MSG_FIND_LAYOUT_ANOMALIES_ERROR, DHT_MSG_ANOMALIES_INFO,
+    DHT_MSG_LAYOUT_INFO, DHT_MSG_INODE_LK_ERROR, DHT_MSG_RENAME_INFO,
+    DHT_MSG_DATA_NULL, DHT_MSG_AGGREGATE_QUOTA_XATTR_FAILED,
+    DHT_MSG_UNLINK_LOOKUP_INFO, DHT_MSG_LINK_FILE_LOOKUP_INFO,
+    DHT_MSG_OPERATION_NOT_SUP, DHT_MSG_NOT_LINK_FILE_ERROR, DHT_MSG_CHILD_DOWN,
+    DHT_MSG_UUID_PARSE_ERROR, DHT_MSG_GET_DISK_INFO_ERROR,
+    DHT_MSG_INVALID_VALUE, DHT_MSG_SWITCH_PATTERN_INFO,
+    DHT_MSG_SUBVOL_OP_FAILED, DHT_MSG_LAYOUT_PRESET_FAILED,
+    DHT_MSG_INVALID_LINKFILE, DHT_MSG_FIX_LAYOUT_INFO,
+    DHT_MSG_GET_HOSTNAME_FAILED, DHT_MSG_WRITE_FAILED,
+    DHT_MSG_MIGRATE_HARDLINK_FILE_FAILED, DHT_MSG_FSYNC_FAILED,
+    DHT_MSG_SUBVOL_DECOMMISSION_INFO, DHT_MSG_BRICK_QUERY_FAILED,
+    DHT_MSG_SUBVOL_NO_LAYOUT_INFO, DHT_MSG_OPEN_FD_ON_DST_FAILED,
+    DHT_MSG_SUBVOL_NOT_FOUND, DHT_MSG_FILE_LOOKUP_ON_DST_FAILED,
+    DHT_MSG_DISK_LAYOUT_MISSING, DHT_MSG_DICT_GET_FAILED,
+    DHT_MSG_REVALIDATE_CBK_INFO, DHT_MSG_UPGRADE_BRICKS, DHT_MSG_LK_ARRAY_INFO,
+    DHT_MSG_RENAME_NOT_LOCAL, DHT_MSG_RECONFIGURE_INFO,
+    DHT_MSG_INIT_LOCAL_SUBVOL_FAILED, DHT_MSG_SYS_CALL_GET_TIME_FAILED,
+    DHT_MSG_NO_DISK_USAGE_STATUS, DHT_MSG_SUBVOL_DOWN_ERROR,
+    DHT_MSG_REBAL_THROTTLE_INFO, DHT_MSG_COMMIT_HASH_INFO,
+    DHT_MSG_REBAL_STRUCT_SET, DHT_MSG_HAS_MIGINFO, DHT_MSG_LOG_IPC_TIER_ERROR,
+    DHT_MSG_TIER_PAUSED, DHT_MSG_TIER_RESUME, DHT_MSG_SETTLE_HASH_FAILED,
+    DHT_MSG_DEFRAG_PROCESS_DIR_FAILED, DHT_MSG_FD_CTX_SET_FAILED,
+    DHT_MSG_STALE_LOOKUP, DHT_MSG_PARENT_LAYOUT_CHANGED,
+    DHT_MSG_LOCK_MIGRATION_FAILED, DHT_MSG_LOCK_INODE_UNREF_FAILED,
+    DHT_MSG_ASPRINTF_FAILED, DHT_MSG_DIR_LOOKUP_FAILED, DHT_MSG_INODELK_FAILED,
+    DHT_MSG_LOCK_FRAME_FAILED, DHT_MSG_LOCAL_LOCK_INIT_FAILED,
+    DHT_MSG_ENTRYLK_ERROR, DHT_MSG_INODELK_ERROR, DHT_MSG_LOC_FAILED,
+    DHT_MSG_UNKNOWN_FOP, DHT_MSG_MIGRATE_FILE_SKIPPED,
+    DHT_MSG_DIR_XATTR_HEAL_FAILED, DHT_MSG_HASHED_SUBVOL_DOWN,
+    DHT_MSG_NON_HASHED_SUBVOL_DOWN, DHT_MSG_SYNCTASK_CREATE_FAILED,
+    DHT_MSG_DIR_HEAL_ABORT, DHT_MSG_MIGRATE_SKIP, DHT_MSG_FD_CREATE_FAILED,
+    DHT_MSG_DICT_NEW_FAILED, DHT_MSG_FAILED_TO_OPEN, DHT_MSG_CREATE_FAILED,
+    DHT_MSG_FILE_NOT_EXIST, DHT_MSG_CHOWN_FAILED, DHT_MSG_FALLOCATE_FAILED,
+    DHT_MSG_FTRUNCATE_FAILED, DHT_MSG_STATFS_FAILED, DHT_MSG_WRITE_CROSS,
+    DHT_MSG_NEW_TARGET_FOUND, DHT_MSG_INSUFF_MEMORY, DHT_MSG_SET_XATTR_FAILED,
+    DHT_MSG_SET_MODE_FAILED, DHT_MSG_FILE_EXISTS_IN_DEST,
+    DHT_MSG_SYMLINK_FAILED, DHT_MSG_LINKFILE_DEL_FAILED, DHT_MSG_MKNOD_FAILED,
+    DHT_MSG_MIGRATE_CLEANUP_FAILED, DHT_MSG_LOCK_MIGRATE,
+    DHT_MSG_PARENT_BUILD_FAILED, DHT_MSG_HASHED_SUBVOL_NOT_FOUND,
+    DHT_MSG_ACQUIRE_ENTRYLK_FAILED, DHT_MSG_CREATE_DST_FAILED,
+    DHT_MSG_MIGRATION_EXIT, DHT_MSG_CHANGED_DST, DHT_MSG_TRACE_FAILED,
+    DHT_MSG_WRITE_LOCK_FAILED, DHT_MSG_GETACTIVELK_FAILED, DHT_MSG_STAT_FAILED,
+    DHT_MSG_UNLINK_PERFORM_FAILED, DHT_MSG_CLANUP_SOURCE_FILE_FAILED,
+    DHT_MSG_UNLOCK_FILE_FAILED, DHT_MSG_REMOVE_XATTR_FAILED,
+    DHT_MSG_DATA_MIGRATE_ABORT, DHT_MSG_DEFRAG_NULL, DHT_MSG_PARENT_NULL,
+    DHT_MSG_GFID_NOT_PRESENT, DHT_MSG_CHILD_LOC_FAILED,
+    DHT_MSG_SET_LOOKUP_FAILED, DHT_MSG_DIR_REMOVED,
+    DHT_MSG_TIER_FIX_LAYOUT_STARTED, DHT_MSG_FIX_NOT_COMP,
+    DHT_MSG_REMOVE_TIER_FAILED, DHT_MSG_SUBVOL_DETER_FAILED,
+    DHT_MSG_LOCAL_SUBVOL, DHT_MSG_NODE_UUID, DHT_MSG_SIZE_FILE,
+    DHT_MSG_GET_DATA_SIZE_FAILED, DHT_MSG_PTHREAD_JOIN_FAILED,
+    DHT_MSG_COUNTER_THREAD_CREATE_FAILED, DHT_MSG_MIGRATION_INIT_QUEUE_FAILED,
+    DHT_MSG_PAUSED_TIMEOUT, DHT_MSG_WOKE, DHT_MSG_ABORT_REBALANCE,
+    DHT_MSG_CREATE_TASK_REBAL_FAILED, DHT_MSG_REBAL_ESTIMATE_NOT_AVAIL,
+    DHT_MSG_MIG_TIER_PAUSED, DHT_MSG_ADD_CHOICES_ERROR,
+    DHT_MSG_GET_CHOICES_ERROR, DHT_MSG_PREPARE_STATUS_ERROR,
+    DHT_MSG_SET_CHOICE_FAILED, DHT_MSG_SET_HASHED_SUBVOL_FAILED,
+    DHT_MSG_XATTR_HEAL_NOT_POSS, DHT_MSG_LINKTO_FILE_FAILED,
+    DHT_MSG_STALE_LINKFILE_DELETE, DHT_MSG_NO_SUBVOL_FOR_LINKTO,
+    DHT_MSG_SUBVOL_RETURNED, DHT_MSG_UNKNOWN_LOCAL_XSEL, DHT_MSG_GET_XATTR_ERR,
+    DHT_MSG_ALLOC_OR_FILL_FAILED, DHT_MSG_GET_REAL_NAME_FAILED,
+    DHT_MSG_COPY_UUID_FAILED, DHT_MSG_MDS_DETER_FAILED,
+    DHT_MSG_CREATE_REBAL_FAILED, DHT_MSG_LINK_LAYOUT_FAILED,
+    DHT_MSG_NO_SUBVOL_IN_LAYOUT, DHT_MSG_MEM_ALLOC_FAILED,
+    DHT_MSG_SET_IN_PARAMS_DICT_FAILED, DHT_MSG_LOC_COPY_FAILED,
+    DHT_MSG_PARENT_LOC_FAILED, DHT_MSG_CREATE_LOCK_FAILED,
+    DHT_MSG_PREV_ATTEMPT_FAILED, DHT_MSG_REFRESH_ATTEMPT,
+    DHT_MSG_ACQUIRE_LOCK_FAILED, DHT_MSG_CREATE_STUB_FAILED,
+    DHT_MSG_WIND_LOCK_REQ_FAILED, DHT_MSG_REFRESH_FAILED,
+    DHT_MSG_CACHED_SUBVOL_ERROR, DHT_MSG_NO_LINK_SUBVOL, DHT_MSG_SET_KEY_FAILED,
+    DHT_MSG_REMOVE_LINKTO_FAILED, DHT_MSG_LAYOUT_DICT_SET_FAILED,
+    DHT_MSG_XATTR_DICT_NULL, DHT_MSG_DUMMY_ALLOC_FAILED, DHT_MSG_DICT_IS_NULL,
+    DHT_MSG_LINK_INODE_FAILED, DHT_MSG_SELFHEAL_FAILED, DHT_MSG_NO_MDS_SUBVOL,
+    DHT_MSG_LIST_XATTRS_FAILED, DHT_MSG_RESET_INTER_XATTR_FAILED,
+    DHT_MSG_MDS_DOWN_UNABLE_TO_SET, DHT_MSG_WIND_UNLOCK_FAILED,
+    DHT_MSG_COMMIT_HASH_FAILED, DHT_MSG_UNLOCK_GFID_FAILED,
+    DHT_MSG_UNLOCK_FOLLOW_ENTRYLK, DHT_MSG_COPY_FRAME_FAILED,
+    DHT_MSG_UNLOCK_FOLLOW_LOCKS, DHT_MSG_ENTRYLK_FAILED_AFT_INODELK,
+    DHT_MSG_CALLOC_FAILED, DHT_MSG_LOCK_ALLOC_FAILED,
+    DHT_MSG_BLOCK_INODELK_FAILED,
+    DHT_MSG_LOCAL_LOCKS_STORE_FAILED_UNLOCKING_FOLLOWING_ENTRYLK,
+    DHT_MSG_ALLOC_FRAME_FAILED_NOT_UNLOCKING_FOLLOWING_ENTRYLKS,
+    DHT_MSG_DST_NULL_SET_FAILED);
+
+#define DHT_MSG_FD_CTX_SET_FAILED_STR "Failed to set fd ctx"
+#define DHT_MSG_INVALID_VALUE_STR "Different dst found in the fd ctx"
+#define DHT_MSG_UNKNOWN_FOP_STR "Unknown FOP on file"
+#define DHT_MSG_OPEN_FD_ON_DST_FAILED_STR "Failed to open the fd on file"
+#define DHT_MSG_SYNCTASK_CREATE_FAILED_STR "Failed to create synctask"
+#define DHT_MSG_ASPRINTF_FAILED_STR                                            \
+    "asprintf failed while fetching subvol from the id"
+#define DHT_MSG_HAS_MIGINFO_STR "Found miginfo in the inode ctx"
+#define DHT_MSG_FILE_LOOKUP_FAILED_STR "failed to lookup the file"
+#define DHT_MSG_INVALID_LINKFILE_STR                                           \
+    "linkto target is different from cached-subvol. treating as destination "  \
+    "subvol"
+#define DHT_MSG_GFID_MISMATCH_STR "gfid different on the target file"
+#define DHT_MSG_GET_XATTR_FAILED_STR "failed to get 'linkto' xattr"
+#define DHT_MSG_SET_INODE_CTX_FAILED_STR "failed to set inode-ctx target file"
+#define DHT_MSG_DIR_SELFHEAL_FAILED_STR "Healing of path failed"
+#define DHT_MSG_DIR_HEAL_ABORT_STR                                             \
+    "Failed to get path from subvol. Aborting directory healing"
+#define DHT_MSG_DIR_XATTR_HEAL_FAILED_STR "xattr heal failed for directory"
+#define DHT_MSG_LOCK_INODE_UNREF_FAILED_STR                                    \
+    "Found a NULL inode. Failed to unref the inode"
+#define DHT_MSG_DICT_SET_FAILED_STR "Failed to set dictionary value"
+#define DHT_MSG_NOT_LINK_FILE_ERROR_STR "got non-linkfile"
+#define DHT_MSG_CREATE_LINK_FAILED_STR "failed to initialize linkfile data"
+#define DHT_MSG_UNLINK_FAILED_STR "Unlinking linkfile on subvolume failed"
+#define DHT_MSG_MIGRATE_FILE_FAILED_STR "Migrate file failed"
+#define DHT_MSG_NO_MEMORY_STR "could not allocate memory for dict"
+#define DHT_MSG_SUBVOL_ERROR_STR "Failed to get linkto subvol"
+#define DHT_MSG_MIGRATE_HARDLINK_FILE_FAILED_STR "link failed on subvol"
+#define DHT_MSG_MIGRATE_FILE_SKIPPED_STR "Migration skipped"
+#define DHT_MSG_FD_CREATE_FAILED_STR "fd create failed"
+#define DHT_MSG_DICT_NEW_FAILED_STR "dict_new failed"
+#define DHT_MSG_FAILED_TO_OPEN_STR "failed to open"
+#define DHT_MSG_CREATE_FAILED_STR "failed to create"
+#define DHT_MSG_FILE_NOT_EXIST_STR "file does not exist"
+#define DHT_MSG_CHOWN_FAILED_STR "chown failed"
+#define DHT_MSG_FALLOCATE_FAILED_STR "fallocate failed"
+#define DHT_MSG_FTRUNCATE_FAILED_STR "ftruncate failed"
+#define DHT_MSG_STATFS_FAILED_STR "failed to get statfs"
+#define DHT_MSG_WRITE_CROSS_STR                                                \
+    "write will cross min-fre-disk for file on subvol. looking for new subvol"
+#define DHT_MSG_SUBVOL_INSUFF_SPACE_STR                                        \
+    "Could not find any subvol with space accommodating the file. Cosider "    \
+    "adding bricks"
+#define DHT_MSG_NEW_TARGET_FOUND_STR "New target found for file"
+#define DHT_MSG_INSUFF_MEMORY_STR "insufficient memory"
+#define DHT_MSG_MIG_TIER_PAUSED_STR "Migrate file paused"
+#define DHT_MSG_SET_XATTR_FAILED_STR "failed to set xattr"
+#define DHT_MSG_SET_MODE_FAILED_STR "failed to set mode"
+#define DHT_MSG_FILE_EXISTS_IN_DEST_STR "file exists in destination"
+#define DHT_MSG_LINKFILE_DEL_FAILED_STR "failed to delete the linkfile"
+#define DHT_MSG_SYMLINK_FAILED_STR "symlink failed"
+#define DHT_MSG_MKNOD_FAILED_STR "mknod failed"
+#define DHT_MSG_SETATTR_FAILED_STR "failed to perform setattr"
+#define DHT_MSG_MIGRATE_CLEANUP_FAILED_STR                                     \
+    "Migrate file cleanup failed: failed to fstat file"
+#define DHT_MSG_LOCK_MIGRATE_STR "locks will be migrated for file"
+#define DHT_MSG_PARENT_BUILD_FAILED_STR                                        \
+    "failed to build parent loc, which is needed to acquire entrylk to "       \
+    "synchronize with renames on this path. Skipping migration"
+#define DHT_MSG_HASHED_SUBVOL_NOT_FOUND_STR                                    \
+    "cannot find hashed subvol which is needed to synchronize with renames "   \
+    "on this path. Skipping migration"
+#define DHT_MSG_ACQUIRE_ENTRYLK_FAILED_STR "failed to acquire entrylk on subvol"
+#define DHT_MSG_CREATE_DST_FAILED_STR "create dst failed for file"
+#define DHT_MSG_MIGRATION_EXIT_STR "Exiting migration"
+#define DHT_MSG_CHANGED_DST_STR "destination changed fo file"
+#define DHT_MSG_TRACE_FAILED_STR "Trace failed"
+#define DHT_MSG_WRITE_LOCK_FAILED_STR "write lock failed"
+#define DHT_MSG_GETACTIVELK_FAILED_STR "getactivelk failed for file"
+#define DHT_MSG_STAT_FAILED_STR "failed to do a stat"
+#define DHT_MSG_UNLINK_PERFORM_FAILED_STR "failed to perform unlink"
+#define DHT_MSG_MIGRATE_FILE_COMPLETE_STR "completed migration"
+#define DHT_MSG_CLANUP_SOURCE_FILE_FAILED_STR "failed to cleanup source file"
+#define DHT_MSG_UNLOCK_FILE_FAILED_STR "failed to unlock file"
+#define DHT_MSG_REMOVE_XATTR_FAILED_STR "remove xattr failed"
+#define DHT_MSG_SOCKET_ERROR_STR "Failed to unlink listener socket"
+#define DHT_MSG_HASHED_SUBVOL_GET_FAILED_STR "Failed to get hashed subvolume"
+#define DHT_MSG_CACHED_SUBVOL_GET_FAILED_STR "Failed to get cached subvolume"
+#define DHT_MSG_MIGRATE_DATA_FAILED_STR "migrate-data failed"
+#define DHT_MSG_DEFRAG_NULL_STR "defrag is NULL"
+#define DHT_MSG_DATA_MIGRATE_ABORT_STR                                         \
+    "Readdirp failed. Aborting data migration for dict"
+#define DHT_MSG_LAYOUT_FIX_FAILED_STR "fix layout failed"
+#define DHT_MSG_PARENT_NULL_STR "parent is NULL"
+#define DHT_MSG_GFID_NOT_PRESENT_STR "gfid not present"
+#define DHT_MSG_CHILD_LOC_FAILED_STR "Child loc build failed"
+#define DHT_MSG_SET_LOOKUP_FAILED_STR "Failed to set lookup"
+#define DHT_MSG_LOG_TIER_STATUS_STR "lookup to cold tier on attach heal failed"
+#define DHT_MSG_DIR_LOOKUP_FAILED_STR "lookup failed"
+#define DHT_MSG_DIR_REMOVED_STR "Dir renamed or removed. Skipping"
+#define DHT_MSG_READDIR_ERROR_STR "readdir failed, Aborting fix-layout"
+#define DHT_MSG_SETTLE_HASH_FAILED_STR "Settle hash failed"
+#define DHT_MSG_DEFRAG_PROCESS_DIR_FAILED_STR "gf_defrag_process_dir failed"
+#define DHT_MSG_TIER_FIX_LAYOUT_STARTED_STR "Tiering fix layout started"
+#define DHT_MSG_FIX_NOT_COMP_STR                                               \
+    "Unable to retrieve fixlayout xattr. Assume background fix layout not "    \
+    "complete"
+#define DHT_MSG_REMOVE_TIER_FAILED_STR "Failed removing tier fix layout xattr"
+#define DHT_MSG_SUBVOL_DETER_FAILED_STR                                        \
+    "local subvolume determination failed with error"
+#define DHT_MSG_LOCAL_SUBVOL_STR "local subvol"
+#define DHT_MSG_NODE_UUID_STR "node uuid"
+#define DHT_MSG_SIZE_FILE_STR "Total size files"
+#define DHT_MSG_GET_DATA_SIZE_FAILED_STR                                       \
+    "Failed to get the total data size. Unable to estimate time to complete "  \
+    "rebalance"
+#define DHT_MSG_PTHREAD_JOIN_FAILED_STR                                        \
+    "file_counter_thread: pthread_join failed"
+#define DHT_MSG_COUNTER_THREAD_CREATE_FAILED_STR                               \
+    "Failed to create the file counter thread"
+#define DHT_MSG_MIGRATION_INIT_QUEUE_FAILED_STR                                \
+    "Failed to initialise migration queue"
+#define DHT_MSG_REBALANCE_STOPPED_STR "Received stop command on rebalance"
+#define DHT_MSG_TIER_RESUME_STR "Pause end. Resume tiering"
+#define DHT_MSG_TIER_PAUSED_STR "Pause tiering"
+#define DHT_MSG_PAUSED_TIMEOUT_STR "Request pause timer timeout"
+#define DHT_MSG_WOKE_STR "woken"
+#define DHT_MSG_ABORT_REBALANCE_STR "Aborting rebalance"
+#define DHT_MSG_REBALANCE_START_FAILED_STR                                     \
+    "Failed to start rebalance: look up on / failed"
+#define DHT_MSG_CREATE_TASK_REBAL_FAILED_STR                                   \
+    "Could not create task for rebalance"
+#define DHT_MSG_REBAL_ESTIMATE_NOT_AVAIL_STR                                   \
+    "Rebalance estimates will not be available"
+#define DHT_MSG_REBALANCE_STATUS_STR "Rebalance status"
+#define DHT_MSG_DATA_NULL_STR "data value is NULL"
+#define DHT_MSG_ADD_CHOICES_ERROR_STR "Error to add choices in buffer"
+#define DHT_MSG_GET_CHOICES_ERROR_STR "Error to get choices"
+#define DHT_MSG_PREPARE_STATUS_ERROR_STR "Error to prepare status"
+#define DHT_MSG_SET_CHOICE_FAILED_STR "Failed to set full choice"
+#define DHT_MSG_AGGREGATE_QUOTA_XATTR_FAILED_STR                               \
+    "Failed to aggregate quota xattr"
+#define DHT_MSG_FILE_TYPE_MISMATCH_STR                                         \
+    "path exists as a file on one subvolume and directory on another. Please " \
+    "fix it manually"
+#define DHT_MSG_LAYOUT_SET_FAILED_STR "failed to set layout for subvolume"
+#define DHT_MSG_LAYOUT_MERGE_FAILED_STR "failed to merge layouts for subvolume"
+#define DHT_MSG_SET_HASHED_SUBVOL_FAILED_STR "Failed to set hashed subvolume"
+#define DHT_MSG_XATTR_HEAL_NOT_POSS_STR                                        \
+    "No gfid exists for path. so healing xattr is not possible"
+#define DHT_MSG_REVALIDATE_CBK_INFO_STR "Revalidate: subvolume returned -1"
+#define DHT_MSG_LAYOUT_MISMATCH_STR "Mismatching layouts"
+#define DHT_MSG_UNLINK_LOOKUP_INFO_STR "lookup_unlink retuened"
+#define DHT_MSG_LINKTO_FILE_FAILED_STR                                         \
+    "Could not unlink the linkto file as either fd is open and/or linkto "     \
+    "xattr is set"
+#define DHT_MSG_LAYOUT_PRESET_FAILED_STR                                       \
+    "Could not set pre-set layout for subvolume"
+#define DHT_MSG_FILE_ON_MULT_SUBVOL_STR                                        \
+    "multiple subvolumes have file (preferably rename the file in the "        \
+    "backend, and do a fresh lookup"
+#define DHT_MSG_STALE_LINKFILE_DELETE_STR                                      \
+    "attempting deletion of stale linkfile"
+#define DHT_MSG_LINK_FILE_LOOKUP_INFO_STR "Lookup on following linkfile"
+#define DHT_MSG_NO_SUBVOL_FOR_LINKTO_STR "No link subvolume for linkto"
+#define DHT_MSG_SUBVOL_RETURNED_STR "Subvolume returned -1"
+#define DHT_MSG_UNKNOWN_LOCAL_XSEL_STR "Unknown local->xsel"
+#define DHT_MSG_DICT_GET_FAILED_STR "Failed to get"
+#define DHT_MSG_UUID_PARSE_ERROR_STR "Failed to parse uuid"
+#define DHT_MSG_GET_XATTR_ERR_STR "getxattr err for dir"
+#define DHT_MSG_ALLOC_OR_FILL_FAILED_STR "alloc or fill failed"
+#define DHT_MSG_UPGRADE_BRICKS_STR                                             \
+    "At least one of the bricks does not support this operation. Please "      \
+    "upgrade all bricks"
+#define DHT_MSG_GET_REAL_NAME_FAILED_STR "Failed to get real filename"
+#define DHT_MSG_LAYOUT_NULL_STR "Layout is NULL"
+#define DHT_MSG_COPY_UUID_FAILED_STR "Failed to copy node uuid key"
+#define DHT_MSG_MDS_DETER_FAILED_STR                                           \
+    "Cannot determine MDS, fetching xattr randomly from a subvol"
+#define DHT_MSG_HASHED_SUBVOL_DOWN_STR                                         \
+    "MDS is down for path, so fetching xattr randomly from subvol"
+#define DHT_MSG_CREATE_REBAL_FAILED_STR                                        \
+    "failed to create a new rebalance synctask"
+#define DHT_MSG_FIX_LAYOUT_INFO_STR "fixing the layout"
+#define DHT_MSG_OPERATION_NOT_SUP_STR "wrong directory-spread-count value"
+#define DHT_MSG_LINK_LAYOUT_FAILED_STR "failed to link the layout in inode"
+#define DHT_MSG_NO_SUBVOL_IN_LAYOUT_STR "no subvolume in layout for path"
+#define DHT_MSG_INODE_LK_ERROR_STR "mknod lock failed for file"
+#define DHT_MSG_MEM_ALLOC_FAILED_STR "mem allocation failed"
+#define DHT_MSG_PARENT_LAYOUT_CHANGED_STR                                      \
+    "extracting in-memory layout of parent failed"
+#define DHT_MSG_SET_IN_PARAMS_DICT_FAILED_STR                                  \
+    "setting in params dictionary failed"
+#define DHT_MSG_LOC_COPY_FAILED_STR "loc_copy failed"
+#define DHT_MSG_LOC_FAILED_STR "parent loc build failed"
+#define DHT_MSG_PARENT_LOC_FAILED_STR "locking parent failed"
+#define DHT_MSG_CREATE_LOCK_FAILED_STR "Create lock failed"
+#define DHT_MSG_PREV_ATTEMPT_FAILED_STR                                        \
+    "mkdir loop detected. parent layout didn't change even though previous "   \
+    "attempt of mkdir failed because of in-memory layout not matching with "   \
+    "that on disk."
+#define DHT_MSG_REFRESH_ATTEMPT_STR                                            \
+    "mkdir parent layout changed. Attempting a refresh and then a retry"
+#define DHT_MSG_ACQUIRE_LOCK_FAILED_STR                                        \
+    "Acquiring lock on parent to guard against layout-change failed"
+#define DHT_MSG_CREATE_STUB_FAILED_STR "creating stub failed"
+#define DHT_MSG_WIND_LOCK_REQ_FAILED_STR                                       \
+    "cannot wind lock request to guard parent layout"
+#define DHT_MSG_REFRESH_FAILED_STR "refreshing parent layout failed."
+#define DHT_MSG_CACHED_SUBVOL_ERROR_STR "On cached subvol"
+#define DHT_MSG_NO_LINK_SUBVOL_STR "Linkfile does not have link subvolume"
+#define DHT_MSG_SET_KEY_FAILED_STR "failed to set key"
+#define DHT_MSG_CHILD_DOWN_STR "Received CHILD_DOWN. Exiting"
+#define DHT_MSG_LOG_FIXED_LAYOUT_STR "log layout fixed"
+#define DHT_MSG_REBAL_STRUCT_SET_STR "local->rebalance already set"
+#define DHT_MSG_REMOVE_LINKTO_FAILED_STR "Removal of linkto failed at subvol"
+#define DHT_MSG_LAYOUT_DICT_SET_FAILED_STR "dht layout dict set failed"
+#define DHT_MSG_SUBVOL_INFO_STR "creating subvolume"
+#define DHT_MSG_COMPUTE_HASH_FAILED_STR "hash computation failed"
+#define DHT_MSG_INVALID_DISK_LAYOUT_STR                                        \
+    "Invalid disk layout: Catastrophic error layout with unknown type found"
+#define DHT_MSG_LAYOUT_SORT_FAILED_STR "layout sort failed"
+#define DHT_MSG_ANOMALIES_INFO_STR "Found anomalies"
+#define DHT_MSG_XATTR_DICT_NULL_STR "xattr dictionary is NULL"
+#define DHT_MSG_DISK_LAYOUT_MISSING_STR "Disk layout missing"
+#define DHT_MSG_LAYOUT_INFO_STR "layout info"
+#define DHT_MSG_SUBVOL_NO_LAYOUT_INFO_STR "no pre-set layout for subvol"
+#define DHT_MSG_SELFHEAL_XATTR_FAILED_STR "layout setxattr failed"
+#define DHT_MSG_DIR_SELFHEAL_XATTR_FAILED_STR "Directory self heal xattr failed"
+#define DHT_MSG_DUMMY_ALLOC_FAILED_STR "failed to allocate dummy layout"
+#define DHT_MSG_DICT_IS_NULL_STR                                               \
+    "dict is NULL, need to make sure gfids are same"
+#define DHT_MSG_ENTRYLK_ERROR_STR "acquiring entrylk after inodelk failed"
+#define DHT_MSG_NO_DISK_USAGE_STATUS_STR "no du stats"
+#define DHT_MSG_LINK_INODE_FAILED_STR "linking inode failed"
+#define DHT_MSG_SELFHEAL_FAILED_STR "Directory selfheal failed"
+#define DHT_MSG_NO_MDS_SUBVOL_STR "No mds subvol"
+#define DHT_MSG_LIST_XATTRS_FAILED_STR "failed to list xattrs"
+#define DHT_MSG_RESET_INTER_XATTR_FAILED_STR "Failed to reset internal xattr"
+#define DHT_MSG_MDS_DOWN_UNABLE_TO_SET_STR                                     \
+    "mds subvol is down, unable to set xattr"
+#define DHT_MSG_DIR_ATTR_HEAL_FAILED_STR                                       \
+    "Directory attr heal failed. Failed to set uid/gid"
+#define DHT_MSG_WIND_UNLOCK_FAILED_STR                                         \
+    "Winding unlock failed: stale locks left on brick"
+#define DHT_MSG_COMMIT_HASH_FAILED_STR "Directory commit hash updaten failed"
+#define DHT_MSG_LK_ARRAY_INFO_STR "lk info"
+#define DHT_MSG_UNLOCK_GFID_FAILED_STR                                         \
+    "unlock failed on gfid: stale lock might be left"
+#define DHT_MSG_UNLOCKING_FAILED_STR "unlocking failed"
+#define DHT_MSG_UNLOCK_FOLLOW_ENTRYLK_STR "not unlocking following entrylks"
+#define DHT_MSG_COPY_FRAME_FAILED_STR "copy frame failed"
+#define DHT_MSG_UNLOCK_FOLLOW_LOCKS_STR "not unlocking following locks"
+#define DHT_MSG_INODELK_FAILED_STR "inodelk failed on subvol"
+#define DHT_MSG_LOCK_FRAME_FAILED_STR "memory allocation failed for lock_frame"
+#define DHT_MSG_LOCAL_LOCK_INIT_FAILED_STR "dht_local_lock_init failed"
+#define DHT_MSG_ENTRYLK_FAILED_AFT_INODELK_STR                                 \
+    "dht_blocking_entrylk failed after taking inodelk"
+#define DHT_MSG_BLOCK_INODELK_FAILED_STR "dht_blocking_inodelk failed"
+#define DHT_MSG_CALLOC_FAILED_STR "calloc failed"
+#define DHT_MSG_LOCK_ALLOC_FAILED_STR "lock allocation failed"
+#define DHT_MSG_ALLOC_FRAME_FAILED_NOT_UNLOCKING_FOLLOWING_ENTRYLKS_STR        \
+    "cannot allocate a frame, not unlocking following entrylks"
+#define DHT_MSG_LOCAL_LOCKS_STORE_FAILED_UNLOCKING_FOLLOWING_ENTRYLK_STR       \
+    "storing locks in local failed, not unlocking following entrylks"
+#define DHT_MSG_DST_NULL_SET_FAILED_STR                                        \
+    "src or dst is NULL, Failed to set dictionary value"
 
-#define glfs_msg_end_x GLFS_MSGID_END, "Invalid: End of messages"
 #endif /* _DHT_MESSAGES_H_ */

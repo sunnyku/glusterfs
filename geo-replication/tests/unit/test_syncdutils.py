@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #
 # Copyright (c) 2011-2014 Red Hat, Inc. <http://www.redhat.com>
 # This file is part of GlusterFS.

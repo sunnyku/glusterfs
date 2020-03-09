@@ -34,7 +34,7 @@ _init ()
 
     # check whether getfattr exists
     export PATH
-    getfattr=$(which getfattr 2>/dev/null);
+    getfattr=$(command -v getfattr 2>/dev/null)
     if [ $? -ne 0 ]; then
         warn "WARNING: getfattr not found, certain checks will be skipped.."
     fi
@@ -161,10 +161,6 @@ start_glusterfs ()
        cmd_line=$(echo "$cmd_line --volfile-max-fetch-attempts=$volfile_max_fetch_attempts")
     fi
 
-    if [ -n "$fopen_keep_cache" ]; then
-        cmd_line=$(echo "$cmd_line --fopen-keep-cache");
-    fi
-
     if [ -n "$volfile_check" ]; then
         cmd_line=$(echo "$cmd_line --volfile-check");
     fi
@@ -185,7 +181,20 @@ start_glusterfs ()
         cmd_line=$(echo "$cmd_line --no-root-squash");
     fi
 
-#options with values start here
+    if [ -n "$thin_client" ]; then
+        cmd_line=$(echo "$cmd_line --thin-client");
+    fi
+
+    if [ -n "$global_threading" ]; then
+        cmd_line=$(echo "$cmd_line --global-threading");
+    fi
+
+#options with optional values start here
+    if [ -n "$fopen_keep_cache" ]; then
+        cmd_line=$(echo "$cmd_line --fopen-keep-cache=$fopen_keep_cache");
+    fi
+
+#options with mandatory values start here
     if [ -n "$halo_max_latency" ]; then
       cmd_line=$(echo "$cmd_line --xlator-option \
  *replicate*.halo-max-latency=$halo_max_latency");
@@ -217,6 +226,18 @@ start_glusterfs ()
         cmd_line=$(echo "$cmd_line --use-readdirp=$use_readdirp");
     fi
 
+    if [ -n "$event_history" ]; then
+        cmd_line=$(echo "$cmd_line --event-history=$event_history");
+    fi
+
+    if [ -n "$reader_thread_count" ]; then
+        cmd_line=$(echo "$cmd_line --reader-thread-count=$reader_thread_count");
+    fi
+
+    if [ -n "$fuse_auto_invalidation" ]; then
+        cmd_line=$(echo "$cmd_line --auto-invalidation=$fuse_auto_invalidation");
+    fi
+
     if [ -n "$volume_name" ]; then
         cmd_line=$(echo "$cmd_line --volume-name=$volume_name");
     fi
@@ -237,6 +258,14 @@ start_glusterfs ()
         cmd_line=$(echo "$cmd_line --gid-timeout=$gid_timeout");
     fi
 
+    if [ -n "$lru_limit" ]; then
+        cmd_line=$(echo "$cmd_line --lru-limit=$lru_limit");
+    fi
+
+    if [ -n "$invalidate_limit" ]; then
+        cmd_line=$(echo "$cmd_line --invalidate-limit=$invalidate_limit");
+    fi
+
     if [ -n "$bg_qlen" ]; then
         cmd_line=$(echo "$cmd_line --background-qlen=$bg_qlen");
     fi
@@ -255,6 +284,28 @@ start_glusterfs ()
 
     if [ -n "$xlator_option" ]; then
         cmd_line=$(echo "$cmd_line --xlator-option=$xlator_option");
+    fi
+
+    if [ -n "$kernel_writeback_cache" ]; then
+        cmd_line=$(echo "$cmd_line --kernel-writeback-cache=$kernel_writeback_cache");
+    fi
+
+    if [ -n "$attr_times_granularity" ]; then
+        cmd_line=$(echo "$cmd_line --attr-times-granularity=$attr_times_granularity");
+    fi
+
+    if [ -n "$dump_fuse" ]; then
+        cmd_line=$(echo "$cmd_line --dump-fuse=$dump_fuse");
+    fi
+
+    if [ -n "$fuse_flush_handle_interrupt" ]; then
+        cmd_line=$(echo "$cmd_line --fuse-flush-handle-interrupt=$fuse_flush_handle_interrupt");
+    fi
+
+    if [ -n "$process_name" ]; then
+        cmd_line=$(echo "$cmd_line --process-name fuse.$process_name");
+    else
+        cmd_line=$(echo "$cmd_line --process-name fuse");
     fi
 
     # if trasnport type is specified, we have to append it to
@@ -312,10 +363,21 @@ start_glusterfs ()
         cmd_line=$(echo "$cmd_line --fuse-mountopts=$fuse_mountopts");
     fi
 
+    if [ -n "$subdir_mount" ]; then
+        cmd_line=$(echo "$cmd_line --subdir-mount=/$subdir_mount");
+    fi
+
+    if [ -n "$fuse_dev_eperm_ratelimit_ns" ]; then
+        cmd_line=$(echo "$cmd_line --fuse-dev-eperm-ratelimit-ns=$fuse_dev_eperm_ratelimit_ns");
+    fi
+
     cmd_line=$(echo "$cmd_line $mount_point");
     $cmd_line;
     if [ $? -ne 0 ]; then
-        warn "Mount failed. Please check the log file for more details."
+        # If this is true, then glusterfs process returned error without
+        # getting daemonized. We have made sure the logs are posted to
+        # 'stderr', so no need to point them to logfile.
+        warn "Mounting glusterfs on $mount_point failed."
         exit 1;
     fi
 
@@ -323,7 +385,9 @@ start_glusterfs ()
     inode=$( ${getinode} $mount_point 2>/dev/null);
     # this is required if the stat returns error
     if [ $? -ne 0 ]; then
-        warn "Mount failed. Please check the log file for more details."
+        # At this time, glusterfs got daemonized, and then later exited.
+        # These failures are only logged in log file.
+        warn "Mount failed. Check the log file ${log_file} for more details."
         umount $mount_point > /dev/null 2>&1;
         exit 1;
     fi
@@ -332,9 +396,9 @@ start_glusterfs ()
 print_usage ()
 {
 cat << EOF
-Usage: $0 <volumeserver>:<volumeid/volumeport> -o<options> <mountpoint>
+Usage: $0 <server>:<volume/subdir> <mountpoint> -o<options>
 Options:
-man 8 $0
+man 8 $(basename $0)
 To display the version number of the mount helper: $0 -V
 EOF
 }
@@ -430,6 +494,9 @@ with_options()
         "volume-id")
             volume_id=$value
             ;;
+        "subdir-mount")
+            subdir_mount=$value
+            ;;
         "volfile-check")
             volfile_check=$value
             ;;
@@ -447,6 +514,12 @@ with_options()
             ;;
         "gid-timeout")
             gid_timeout=$value
+            ;;
+        "lru-limit")
+            lru_limit=$value
+            ;;
+        "invalidate-limit")
+            invalidate_limit=$value
             ;;
         "background-qlen")
             bg_qlen=$value
@@ -475,6 +548,15 @@ with_options()
         "use-readdirp")
             use_readdirp=$value
             ;;
+        "event-history")
+            event_history=$value
+            ;;
+        "reader-thread-count")
+            reader_thread_count=$value
+            ;;
+        "auto-invalidation")
+            fuse_auto_invalidation=$value
+	    ;;
         "no-root-squash")
             if [ $value = "yes" ] ||
                 [ $value = "on" ] ||
@@ -489,6 +571,21 @@ with_options()
                 [ $value = "false" ] ; then
                 no_root_squash=1;
             fi ;;
+        "kernel-writeback-cache")
+            kernel_writeback_cache=$value
+            ;;
+        "attr-times-granularity")
+            attr_times_granularity=$value
+            ;;
+        "dump-fuse")
+            dump_fuse=$value
+            ;;
+        "fuse-flush-handle-interrupt")
+            fuse_flush_handle_interrupt=$value
+            ;;
+        "fuse-dev-eperm-ratelimit-ns")
+            fuse_dev_eperm_ratelimit_ns=$value
+            ;;
         "context"|"fscontext"|"defcontext"|"rootcontext")
             # standard SElinux mount options to pass to the kernel
             [ -z "$fuse_mountopts" ] || fuse_mountopts="$fuse_mountopts,"
@@ -503,6 +600,13 @@ with_options()
         "halo-min-replicas")
           halo_min_replicas=$value
           ;;
+        "process-name")
+            process_name=$value
+            ;;
+        # Values that are optional
+        "fopen-keep-cache")
+            fopen_keep_cache="=$value"
+            ;;
         x-*)
             # comments or userspace application-specific options, drop them
             ;;
@@ -530,9 +634,6 @@ without_options()
         "worm")
             worm=1
             ;;
-        "fopen-keep-cache")
-            fopen_keep_cache=1
-            ;;
         "enable-ino32")
             enable_ino32=1
             ;;
@@ -544,11 +645,17 @@ without_options()
                 aux_gfid_mount=1
             fi
             ;;
+        "thin-client")
+            thin_client=1
+            ;;
         "resolve-gids")
             resolve_gids=1
             ;;
          # "mount -t glusterfs" sends this, but it's useless.
         "rw")
+            ;;
+        "global-threading")
+            global_threading=1
             ;;
          # TODO: not sure how to handle this yet
         "async"|"sync"|"dirsync"|\
@@ -570,6 +677,10 @@ without_options()
         "auto"|"noauto")
             ;;
         "_netdev")
+            ;;
+        # Values that are optional
+        "fopen-keep-cache")
+            fopen_keep_cache="true"
             ;;
         x-*)
             # comments or userspace application-specific options, drop them
@@ -612,7 +723,7 @@ update_updatedb()
 
 main ()
 {
-    if [ "x${uname_s}" = "xLinux" ] ; then
+    if [ "x${uname_s}" = "xLinux" -a $# -ge 2 ] ; then
         volfile_loc=$1
         mount_point=$2
 
@@ -652,10 +763,22 @@ main ()
 
     [ -r "$volfile_loc" ] || {
         # '%' included to support ipv6 link local addresses
-        server_ip=$(echo "$volfile_loc" | sed -n 's/\([a-zA-Z0-9:%.\-]*\):.*/\1/p');
+        server_ip=$(echo "$volfile_loc" | sed -n 's/\([a-zA-Z0-9:%,.\-]*\):.*/\1/p');
         volume_str=$(echo "$volfile_loc" | sed -n 's/.*:\([^ ]*\).*/\1/p');
         [ -n "$volume_str" ] && {
-            volume_id="$volume_str";
+            volume_id=$volume_str
+            volume_str_temp=$volume_str
+            first_char=$(echo "$volume_str" | cut -c 1)
+            [ ${first_char} = '/' ] && {
+                volume_str_temp=$(echo "$volume_str" | cut -c 2-)
+            }
+            volume_id_temp=$(echo "$volume_str_temp" | cut -f1 -d '/');
+            [ $(echo $volume_str_temp | grep -c "/") -eq 1 ] &&
+                    [ "$volume_id_temp" != "snaps" ]  && {
+                volume_id=$volume_id_temp;
+                [ ${first_char} = '/' ] && volume_id=/$volume_id;
+                subdir_mount=$(echo "$volume_str_temp" | cut -f2- -d '/');
+            }
         }
         volfile_loc="";
         [ -z "$volume_id" -o -z "$server_ip" ] && {
@@ -693,7 +816,7 @@ EOF
     }
 
     # Simple check to avoid multiple identical mounts
-    if grep -q "[[:space:]+]${mount_point}[[:space:]+]fuse" $mounttab; then
+    if grep -q "[[:space:]+]${mount_point}[[:space:]+]fuse.glusterfs" $mounttab; then
         warn "$0: according to mtab, GlusterFS is already mounted on" \
              "$mount_point"
         exit 32;

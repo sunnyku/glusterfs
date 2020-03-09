@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Copyright (c) 2015 Red Hat, Inc. <http://www.redhat.com/>
@@ -10,9 +9,12 @@
 # cases as published by the Free Software Foundation.
 
 import os
-import ConfigParser
+try:
+    from ConfigParser import ConfigParser
+except ImportError:
+    from configparser import ConfigParser
 
-config = ConfigParser.ConfigParser()
+config = ConfigParser()
 config.read(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "tool.conf"))
 

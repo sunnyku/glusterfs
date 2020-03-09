@@ -11,11 +11,11 @@
 #ifndef _ARBITER_H
 #define _ARBITER_H
 
-#include "locking.h"
-#include "common-utils.h"
+#include <glusterfs/locking.h>
+#include <glusterfs/common-utils.h>
 
 typedef struct arbiter_inode_ctx_ {
-        struct iatt iattbuf;
+    struct iatt iattbuf;
 } arbiter_inode_ctx_t;
 
 #endif /* _ARBITER_H */

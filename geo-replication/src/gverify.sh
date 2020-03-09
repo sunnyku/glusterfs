@@ -7,15 +7,24 @@
 # Considering buffer_size 100MB
 BUFFER_SIZE=104857600;
 SSH_PORT=$5;
-slave_log_file=`gluster --print-logdir`/geo-replication-slaves/slave.log
+master_log_file=`gluster --print-logdir`/geo-replication/gverify-mastermnt.log
+slave_log_file=`gluster --print-logdir`/geo-replication/gverify-slavemnt.log
 
 function SSHM()
 {
-    ssh -p ${SSH_PORT} -q \
-	-oPasswordAuthentication=no \
-	-oStrictHostKeyChecking=no \
-	-oControlMaster=yes \
-	"$@";
+    if [[ -z "${GR_SSH_IDENTITY_KEY}" ]]; then
+        ssh -p ${SSH_PORT} -q \
+	    -oPasswordAuthentication=no \
+	    -oStrictHostKeyChecking=no \
+	    -oControlMaster=yes \
+	    "$@";
+    else
+        ssh -p ${SSH_PORT} -i ${GR_SSH_IDENTITY_KEY} -q \
+	    -oPasswordAuthentication=no \
+	    -oStrictHostKeyChecking=no \
+	    -oControlMaster=yes \
+	    "$@";
+    fi
 }
 
 function get_inode_num()
@@ -85,6 +94,7 @@ echo $cmd_line;
 function master_stats()
 {
     MASTERVOL=$1;
+    local inet6=$2;
     local d;
     local i;
     local disk_size;
@@ -93,7 +103,12 @@ function master_stats()
     local m_status;
 
     d=$(mktemp -d -t ${0##*/}.XXXXXX 2>/dev/null);
-    glusterfs -s localhost --xlator-option="*dht.lookup-unhashed=off" --volfile-id $MASTERVOL -l $slave_log_file $d;
+    if [ "$inet6" = "inet6" ]; then
+        glusterfs -s localhost --xlator-option="*dht.lookup-unhashed=off" --xlator-option="transport.address-family=inet6" --volfile-id $MASTERVOL -l $master_log_file $d;
+    else
+        glusterfs -s localhost --xlator-option="*dht.lookup-unhashed=off" --volfile-id $MASTERVOL -l $master_log_file $d;
+    fi
+
     i=$(get_inode_num $d);
     if [[ "$i" -ne "1" ]]; then
         echo 0:0;
@@ -115,12 +130,18 @@ function slave_stats()
     SLAVEUSER=$1;
     SLAVEHOST=$2;
     SLAVEVOL=$3;
+    local inet6=$4;
     local cmd_line;
     local ver;
     local status;
 
     d=$(mktemp -d -t ${0##*/}.XXXXXX 2>/dev/null);
-    glusterfs --xlator-option="*dht.lookup-unhashed=off" --volfile-server $SLAVEHOST --volfile-id $SLAVEVOL -l $slave_log_file $d;
+    if [ "$inet6" = "inet6" ]; then
+        glusterfs --xlator-option="*dht.lookup-unhashed=off" --xlator-option="transport.address-family=inet6" --volfile-server $SLAVEHOST --volfile-id $SLAVEVOL -l $slave_log_file $d;
+    else
+        glusterfs --xlator-option="*dht.lookup-unhashed=off" --volfile-server $SLAVEHOST --volfile-id $SLAVEVOL -l $slave_log_file $d;
+    fi
+
     i=$(get_inode_num $d);
     if [[ "$i" -ne "1" ]]; then
         echo 0:0;
@@ -158,6 +179,10 @@ function main()
     log_file=$6
     > $log_file
 
+    inet6=$7
+    local cmd_line
+    local ver
+
     # Use FORCE_BLOCKER flag in the error message to differentiate
     # between the errors which the force command should bypass
 
@@ -172,15 +197,32 @@ function main()
         exit 1;
     fi;
 
-    ssh -p ${SSH_PORT} -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=no $2@$3 "echo Testing_Passwordless_SSH";
+    if [[ -z "${GR_SSH_IDENTITY_KEY}" ]]; then
+        ssh -p ${SSH_PORT} -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=no $2@$3 "echo Testing_Passwordless_SSH";
+    else
+        ssh -p ${SSH_PORT} -i ${GR_SSH_IDENTITY_KEY} -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=no $2@$3 "echo Testing_Passwordless_SSH";
+    fi
+
     if [ $? -ne 0 ]; then
         echo "FORCE_BLOCKER|Passwordless ssh login has not been setup with $3 for user $2." > $log_file
         exit 1;
     fi;
 
+    cmd_line=$(cmd_slave);
+    if [[ -z "${GR_SSH_IDENTITY_KEY}" ]]; then
+        ver=$(ssh -p ${SSH_PORT} -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=no $2@$3 bash -c "'$cmd_line'")
+    else
+        ver=$(ssh -p ${SSH_PORT} -i ${GR_SSH_IDENTITY_KEY} -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=no $2@$3 bash -c "'$cmd_line'")
+    fi
+
+    if [ -z "$ver" ]; then
+        echo "FORCE_BLOCKER|gluster command not found on $3 for user $2." > $log_file
+        exit 1;
+    fi;
+
     ERRORS=0;
-    master_data=$(master_stats $1);
-    slave_data=$(slave_stats $2 $3 $4);
+    master_data=$(master_stats $1 ${inet6});
+    slave_data=$(slave_stats $2 $3 $4 ${inet6});
     master_disk_size=$(echo $master_data | cut -f1 -d':');
     slave_disk_size=$(echo $slave_data | cut -f1 -d':');
     master_used_size=$(echo $master_data | cut -f2 -d':');
@@ -190,12 +232,12 @@ function main()
     slave_no_of_files=$(echo $slave_data | cut -f4 -d':');
 
     if [[ "x$master_disk_size" = "x" || "x$master_version" = "x" || "$master_disk_size" -eq "0" ]]; then
-        echo "FORCE_BLOCKER|Unable to fetch master volume details. Please check the master cluster and master volume." > $log_file;
+        echo "FORCE_BLOCKER|Unable to mount and fetch master volume details. Please check the log: $master_log_file" > $log_file;
 	exit 1;
     fi;
 
     if [[ "x$slave_disk_size" = "x" || "x$slave_version" = "x" || "$slave_disk_size" -eq "0" ]]; then
-	echo "FORCE_BLOCKER|Unable to fetch slave volume details. Please check the slave cluster and slave volume." > $log_file;
+	echo "FORCE_BLOCKER|Unable to mount and fetch slave volume details. Please check the log: $slave_log_file" > $log_file;
 	exit 1;
     fi;
 
@@ -223,7 +265,7 @@ function main()
     fi;
 
     if [[ $master_version != $slave_version ]]; then
-        echo "Gluster version mismatch between master and slave." >> $log_file;
+        echo "Gluster version mismatch between master and slave. Master version: $master_version Slave version: $slave_version" >> $log_file;
         ERRORS=$(($ERRORS + 1));
     fi;
 

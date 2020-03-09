@@ -23,11 +23,11 @@
 #include <sys/stat.h>
 #include <sys/mount.h>
 
-#include "glusterfs.h"
-#include "globals.h"
-#include "logging.h"
-#include "syscall.h"
-#include "mem-types.h"
+#include "glusterfs/glusterfs.h"
+#include "glusterfs/globals.h"
+#include "glusterfs/logging.h"
+#include "glusterfs/syscall.h"
+#include "glusterfs/mem-types.h"
 
 static void
 usage (void)
@@ -56,7 +56,8 @@ sanity_check (char *path, dev_t *devp)
                         break;
                 default:
                         gf_log ("umountd", GF_LOG_ERROR,
-                                "Cannot access %s\n", path, strerror (errno));
+                                "Cannot access %s: %s\n",
+                                path, strerror (errno));
                         goto out;
                 }
         }
@@ -65,12 +66,13 @@ sanity_check (char *path, dev_t *devp)
         if (*devp == -1 && ret == 0)
                 *devp = st.st_dev;
 
-        strncpy (pathtmp, path, PATH_MAX);
+        snprintf (pathtmp, PATH_MAX, "%s", path);
         parent = dirname (pathtmp);
 
         if (stat (parent, &parent_st) != 0) {
                 gf_log ("umountd", GF_LOG_ERROR,
-                        "Cannot access %s\n", parent, strerror (errno));
+                        "Cannot access %s: %s\n",
+                        parent, strerror (errno));
                 goto out;
         }
 

@@ -11,6 +11,9 @@ function get_split_brain_status {
 TEST glusterd
 TEST pidof glusterd
 TEST $CLI volume create $V0 replica 2 $H0:$B0/${V0}{0,1}
+TEST $CLI volume set $V0 cluster.data-self-heal on
+TEST $CLI volume set $V0 cluster.metadata-self-heal on
+TEST $CLI volume set $V0 cluster.entry-self-heal on
 TEST $CLI volume start $V0
 
 #Disable self-heal-daemon
@@ -71,6 +74,18 @@ TEST setfattr -n replica.split-brain-choice -v none $M0/data-split-brain.txt
 TEST ! getfattr -n user.test $M0/metadata-split-brain.txt
 TEST ! cat $M0/data-split-brain.txt
 
+#Check that after timeout fops result in EIO again.
+#Set one minute timeout
+TEST setfattr -n replica.split-brain-choice-timeout -v 1 $M0/
+TEST setfattr -n replica.split-brain-choice -v $V0-client-1 $M0/data-split-brain.txt
+EXPECT "brick1_alive" cat $M0/data-split-brain.txt
+TEST setfattr -n replica.split-brain-choice -v $V0-client-0 $M0/metadata-split-brain.txt
+EXPECT "brick0" get_text_xattr user.test $M0/metadata-split-brain.txt
+#Wait until timeout completes and test that the fops fail again
+sleep 62
+TEST ! getfattr -n user.test $M0/metadata-split-brain.txt
+TEST ! cat $M0/data-split-brain.txt
+
 #Negative test cases should fail
 TEST ! setfattr -n replica.split-brain-choice -v $V0-client-4 $M0/data-split-brain.txt
 TEST ! setfattr -n replica.split-brain-heal-finalize -v $V0-client-4 $M0/metadata-split-brain.txt
@@ -85,3 +100,6 @@ EXPECT "brick1_alive" cat $M0/data-split-brain.txt
 EXPECT 0 get_pending_heal_count $V0
 
 cleanup;
+
+#G_TESTDEF_TEST_STATUS_NETBSD7=BAD_TEST,BUG=000000
+#G_TESTDEF_TEST_STATUS_CENTOS6=BAD_TEST,BUG=000000

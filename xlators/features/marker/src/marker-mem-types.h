@@ -10,18 +10,19 @@
 #ifndef __MARKER_MEM_TYPES_H__
 #define __MARKER_MEM_TYPES_H__
 
-#include "mem-types.h"
+#include <glusterfs/mem-types.h>
 
 enum gf_marker_mem_types_ {
-        gf_marker_mt_marker_conf_t = gf_common_mt_end + 1,
-        gf_marker_mt_loc_t,
-        gf_marker_mt_volume_mark,
-        gf_marker_mt_int64_t,
-        gf_marker_mt_quota_inode_ctx_t,
-        gf_marker_mt_marker_inode_ctx_t,
-        gf_marker_mt_inode_contribution_t,
-        gf_marker_mt_quota_meta_t,
-        gf_marker_mt_quota_synctask_t,
-        gf_marker_mt_end
+    /* Those are used by ALLOCATE_OR_GOTO macro */
+    gf_marker_mt_marker_conf_t = gf_common_mt_end + 1,
+    gf_marker_mt_loc_t,
+    gf_marker_mt_volume_mark,
+    gf_marker_mt_int64_t,
+    gf_marker_mt_quota_inode_ctx_t,
+    gf_marker_mt_marker_inode_ctx_t,
+    gf_marker_mt_inode_contribution_t,
+    gf_marker_mt_quota_meta_t,
+    gf_marker_mt_quota_synctask_t,
+    gf_marker_mt_end
 };
 #endif

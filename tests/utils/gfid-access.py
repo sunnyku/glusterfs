@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 #
 # Copyright (c) 2011-2014 Red Hat, Inc. <http://www.redhat.com>
 # This file is part of GlusterFS.
@@ -9,6 +8,7 @@
 # cases as published by the Free Software Foundation.
 #
 
+from __future__ import print_function
 import os
 import sys
 import stat
@@ -33,28 +33,56 @@ def _fmt_mkdir(l):
 def _fmt_symlink(l1, l2):
     return "!II%dsI%ds%ds" % (37, l1+1, l2+1)
 
-def entry_pack_reg(gf, bn, mo, uid, gid):
-    blen = len(bn)
-    return struct.pack(_fmt_mknod(blen),
-                       uid, gid, gf, mo, bn,
-                       stat.S_IMODE(mo), 0, umask())
 
-def entry_pack_dir(gf, bn, mo, uid, gid):
-    blen = len(bn)
-    return struct.pack(_fmt_mkdir(blen),
-                       uid, gid, gf, mo, bn,
-                       stat.S_IMODE(mo), umask())
+if sys.version_info > (3,):
+    def entry_pack_reg(gf, bn, mo, uid, gid):
+        bn_encoded = bn.encode()
+        blen = len(bn_encoded)
+        return struct.pack(_fmt_mknod(blen),
+                           uid, gid, gf.encode(), mo, bn_encoded,
+                           stat.S_IMODE(mo), 0, umask())
 
-def entry_pack_symlink(gf, bn, lnk, mo, uid, gid):
-    blen = len(bn)
-    llen = len(lnk)
-    return struct.pack(_fmt_symlink(blen, llen),
-                       uid, gid, gf, mo, bn, lnk)
+    # mkdir
+    def entry_pack_dir(gf, bn, mo, uid, gid):
+        bn_encoded = bn.encode()
+        blen = len(bn_encoded)
+        return struct.pack(_fmt_mkdir(blen),
+                           uid, gid, gf.encode(), mo, bn_encoded,
+                           stat.S_IMODE(mo), umask())
+    # symlink
+    def entry_pack_symlink(gf, bn, lnk, st):
+        bn_encoded = bn.encode()
+        blen = len(bn_encoded)
+        lnk_encoded = lnk.encode()
+        llen = len(lnk_encoded)
+        return struct.pack(_fmt_symlink(blen, llen),
+                           st['uid'], st['gid'],
+                           gf.encode(), st['mode'], bn_encoded,
+                           lnk_encoded)
+
+else:
+    def entry_pack_reg(gf, bn, mo, uid, gid):
+        blen = len(bn)
+        return struct.pack(_fmt_mknod(blen),
+                           uid, gid, gf, mo, bn,
+                           stat.S_IMODE(mo), 0, umask())
+
+    def entry_pack_dir(gf, bn, mo, uid, gid):
+        blen = len(bn)
+        return struct.pack(_fmt_mkdir(blen),
+                           uid, gid, gf, mo, bn,
+                           stat.S_IMODE(mo), umask())
+
+    def entry_pack_symlink(gf, bn, lnk, mo, uid, gid):
+        blen = len(bn)
+        llen = len(lnk)
+        return struct.pack(_fmt_symlink(blen, llen),
+                           uid, gid, gf, mo, bn, lnk)
 
 if __name__ == '__main__':
     if len(sys.argv) < 9:
-        print("USAGE: %s <mount> <pargfid|ROOT> <filename> <GFID> <file type>"
-              " <uid> <gid> <file permission(octal str)>" % (sys.argv[0]))
+        print(("USAGE: %s <mount> <pargfid|ROOT> <filename> <GFID> <file type>"
+              " <uid> <gid> <file permission(octal str)>" % (sys.argv[0])))
         sys.exit(-1) # nothing to do
     mtpt       = sys.argv[1]
     pargfid    = sys.argv[2]
@@ -63,7 +91,7 @@ if __name__ == '__main__':
     ftype      = sys.argv[5]
     uid        = int(sys.argv[6])
     gid        = int(sys.argv[7])
-    perm       = int(sys.argv[8],8)
+    perm       = int(sys.argv[8], 8)
 
     os.chdir(mtpt)
     if pargfid == 'ROOT':
@@ -92,5 +120,5 @@ if __name__ == '__main__':
         if not ex.errno in [EEXIST]:
             raise
             sys.exit(-1)
-    print "File creation OK"
+    print("File creation OK")
     sys.exit(0)

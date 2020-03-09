@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Copyright (c) 2015 Red Hat, Inc. <http://www.redhat.com/>
@@ -16,10 +15,12 @@ import xml.etree.cElementTree as etree
 import logging
 import os
 from datetime import datetime
-import urllib
 
 ROOT_GFID = "00000000-0000-0000-0000-000000000001"
 DEFAULT_CHANGELOG_INTERVAL = 15
+SPACE_ESCAPE_CHAR = "%20"
+NEWLINE_ESCAPE_CHAR = "%0A"
+PERCENTAGE_ESCAPE_CHAR = "%25"
 
 ParseError = etree.ParseError if hasattr(etree, 'ParseError') else SyntaxError
 cache_data = {}
@@ -35,10 +36,10 @@ class RecordType(object):
 def cache_output(func):
     def wrapper(*args, **kwargs):
         global cache_data
-        if cache_data.get(func.func_name, None) is None:
-            cache_data[func.func_name] = func(*args, **kwargs)
+        if cache_data.get(func.__name__, None) is None:
+            cache_data[func.__name__] = func(*args, **kwargs)
 
-        return cache_data[func.func_name]
+        return cache_data[func.__name__]
     return wrapper
 
 
@@ -57,12 +58,13 @@ def find(path, callback_func=lambda x: True, filter_func=lambda x: True,
     # Capture filter_func output and pass it to callback function
     filter_result = filter_func(path)
     if filter_result is not None:
-        callback_func(path, filter_result)
+        callback_func(path, filter_result, os.path.isdir(path))
 
     for p in os.listdir(path):
         full_path = os.path.join(path, p)
 
-        if os.path.isdir(full_path):
+        is_dir = os.path.isdir(full_path)
+        if is_dir:
             if subdirs_crawl:
                 find(full_path, callback_func, filter_func, ignore_dirs)
             else:
@@ -72,7 +74,7 @@ def find(path, callback_func=lambda x: True, filter_func=lambda x: True,
         else:
             filter_result = filter_func(full_path)
             if filter_result is not None:
-                callback_func(full_path, filter_result)
+                callback_func(full_path, filter_result, is_dir)
 
 
 def output_write(f, path, prefix=".", encode=False, tag="",
@@ -84,7 +86,7 @@ def output_write(f, path, prefix=".", encode=False, tag="",
         path = os.path.join(prefix, path)
 
     if encode:
-        path = urllib.quote_plus(path)
+        path = quote_plus_space_newline(path)
 
     # set the field separator
     FS = "" if tag == "" else field_separator
@@ -246,4 +248,16 @@ def output_path_prepare(path, args):
     if args.no_encode:
         return path
     else:
-        return urllib.quote_plus(path.encode("utf-8"))
+        return quote_plus_space_newline(path)
+
+
+def unquote_plus_space_newline(s):
+    return s.replace(SPACE_ESCAPE_CHAR, " ")\
+            .replace(NEWLINE_ESCAPE_CHAR, "\n")\
+            .replace(PERCENTAGE_ESCAPE_CHAR, "%")
+
+
+def quote_plus_space_newline(s):
+    return s.replace("%", PERCENTAGE_ESCAPE_CHAR)\
+            .replace(" ", SPACE_ESCAPE_CHAR)\
+            .replace("\n", NEWLINE_ESCAPE_CHAR)

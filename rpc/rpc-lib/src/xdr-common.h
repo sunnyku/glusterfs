@@ -22,10 +22,10 @@
 #endif /* __NetBSD__ */
 
 enum gf_dump_procnum {
-        GF_DUMP_NULL,
-        GF_DUMP_DUMP,
-        GF_DUMP_PING,
-        GF_DUMP_MAXVALUE,
+    GF_DUMP_NULL,
+    GF_DUMP_DUMP,
+    GF_DUMP_PING,
+    GF_DUMP_MAXVALUE,
 };
 
 #define GLUSTER_DUMP_PROGRAM 123451501 /* Completely random */
@@ -33,7 +33,7 @@ enum gf_dump_procnum {
 
 /* MAX_AUTH_BYTES is restricted to 400 bytes, see
  * http://tools.ietf.org/html/rfc5531#section-8.2 */
-#define GF_MAX_AUTH_BYTES   MAX_AUTH_BYTES
+#define GF_MAX_AUTH_BYTES MAX_AUTH_BYTES
 
 /* The size of an AUTH_GLUSTERFS_V2 structure:
  *
@@ -54,29 +54,35 @@ enum gf_dump_procnum {
  * Note that the on-wire protocol has tighter requirements than the internal
  * structures. It is possible for xlators to use more groups and a bigger
  * lk_owner than that can be sent by a GlusterFS-client.
+ *
+ * -------
+ * On v3, there are 4 more units, and hence it will be 9 xdr-units
  */
-#define GF_AUTH_GLUSTERFS_MAX_GROUPS(lk_owner_len) \
-           (95 - lk_owner_len)
-#define GF_AUTH_GLUSTERFS_MAX_LKOWNER(groups_len)  \
-           (95 - groups_len)
+#define GF_AUTH_GLUSTERFS_MAX_GROUPS(lk_len, type)                             \
+    ((type == AUTH_GLUSTERFS_v2) ? (95 - lk_len) : (91 - lk_len))
+#define GF_AUTH_GLUSTERFS_MAX_LKOWNER(groups_len, type)                        \
+    ((type == AUTH_GLUSTERFS_v2) ? (95 - groups_len) : (91 - groups_len))
 
 #ifdef GF_LINUX_HOST_OS
 #define xdr_u_int32_t xdr_uint32_t
 #define xdr_u_int64_t xdr_uint64_t
+unsigned long
+xdr_sizeof(xdrproc_t func, void *data);
 #endif
 
 #ifdef GF_DARWIN_HOST_OS
 #define xdr_u_quad_t xdr_u_int64_t
-#define xdr_quad_t   xdr_int64_t
+#define xdr_quad_t xdr_int64_t
 #define xdr_uint32_t xdr_u_int32_t
 #define xdr_uint64_t xdr_u_int64_t
 #define uint64_t u_int64_t
-unsigned long xdr_sizeof (xdrproc_t func, void *data);
+unsigned long
+xdr_sizeof(xdrproc_t func, void *data);
 #endif
 
 #if defined(__NetBSD__)
 #define xdr_u_quad_t xdr_u_int64_t
-#define xdr_quad_t   xdr_int64_t
+#define xdr_quad_t xdr_int64_t
 #define xdr_uint32_t xdr_u_int32_t
 #define xdr_uint64_t xdr_u_int64_t
 #endif
@@ -85,7 +91,7 @@ unsigned long xdr_sizeof (xdrproc_t func, void *data);
 #define u_quad_t uint64_t
 #define quad_t int64_t
 #define xdr_u_quad_t xdr_uint64_t
-#define xdr_quad_t   xdr_int64_t
+#define xdr_quad_t xdr_int64_t
 #endif
 
 /* Returns the address of the byte that follows the
@@ -93,16 +99,18 @@ unsigned long xdr_sizeof (xdrproc_t func, void *data);
  * E.g. once the RPC call for NFS has been decoded, the macro will return
  * the address from which the NFS header starts.
  */
-#define xdr_decoded_remaining_addr(xdr)        ((&xdr)->x_private)
+#define xdr_decoded_remaining_addr(xdr) ((&xdr)->x_private)
 
 /* Returns the length of the remaining record after the previous decode
  * operation completed.
  */
-#define xdr_decoded_remaining_len(xdr)         ((&xdr)->x_handy)
+#define xdr_decoded_remaining_len(xdr) ((&xdr)->x_handy)
 
 /* Returns the number of bytes used by the last encode operation. */
-#define xdr_encoded_length(xdr) (((size_t)(&xdr)->x_private) - ((size_t)(&xdr)->x_base))
+#define xdr_encoded_length(xdr)                                                \
+    (((size_t)(&xdr)->x_private) - ((size_t)(&xdr)->x_base))
 
-#define xdr_decoded_length(xdr) (((size_t)(&xdr)->x_private) - ((size_t)(&xdr)->x_base))
+#define xdr_decoded_length(xdr)                                                \
+    (((size_t)(&xdr)->x_private) - ((size_t)(&xdr)->x_base))
 
 #endif

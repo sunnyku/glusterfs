@@ -10,14 +10,15 @@
 #ifndef __SHARD_MEM_TYPES_H__
 #define __SHARD_MEM_TYPES_H__
 
-#include "mem-types.h"
+#include <glusterfs/mem-types.h>
 
 enum gf_shard_mem_types_ {
-        gf_shard_mt_priv_t = gf_common_mt_end + 1,
-        gf_shard_mt_inode_list,
-        gf_shard_mt_inode_ctx_t,
-        gf_shard_mt_iovec,
-        gf_shard_mt_int64_t,
-        gf_shard_mt_end
+    gf_shard_mt_priv_t = gf_common_mt_end + 1,
+    gf_shard_mt_inode_list,
+    gf_shard_mt_inode_ctx_t,
+    gf_shard_mt_iovec,
+    gf_shard_mt_int64_t,
+    gf_shard_mt_uint64_t,
+    gf_shard_mt_end
 };
 #endif

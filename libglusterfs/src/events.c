@@ -19,117 +19,107 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-#include "syscall.h"
-#include "mem-pool.h"
-#include "glusterfs.h"
-#include "globals.h"
-#include "events.h"
-
+#include "glusterfs/syscall.h"
+#include "glusterfs/mem-pool.h"
+#include "glusterfs/glusterfs.h"
+#include "glusterfs/globals.h"
+#include "glusterfs/events.h"
 
 #define EVENT_HOST "127.0.0.1"
 #define EVENT_PORT 24009
 
-
 int
-_gf_event (eventtypes_t event, const char *fmt, ...)
+_gf_event(eventtypes_t event, const char *fmt, ...)
 {
-        int                ret                   = 0;
-        int                sock                  = -1;
-        char              *eventstr              = NULL;
-        struct             sockaddr_in server;
-        va_list            arguments;
-        char              *msg                   = NULL;
-        glusterfs_ctx_t   *ctx                   = NULL;
-        char              *host                  = NULL;
-        struct addrinfo    hints;
-        struct addrinfo   *result                = NULL;
+    int ret = 0;
+    int sock = -1;
+    char *eventstr = NULL;
+    va_list arguments;
+    char *msg = NULL;
+    glusterfs_ctx_t *ctx = NULL;
+    char *host = NULL;
+    struct addrinfo hints;
+    struct addrinfo *result = NULL;
+    xlator_t *this = THIS;
+    char *volfile_server_transport = NULL;
 
-        /* Global context */
-        ctx = THIS->ctx;
+    /* Global context */
+    ctx = this->ctx;
 
-        if (event < 0 || event >= EVENT_LAST) {
-                ret = EVENT_ERROR_INVALID_INPUTS;
-                goto out;
-        }
+    if (event < 0 || event >= EVENT_LAST) {
+        ret = EVENT_ERROR_INVALID_INPUTS;
+        goto out;
+    }
 
-        /* Initialize UDP socket */
-        sock = socket (AF_INET, SOCK_DGRAM, 0);
-        if (sock < 0) {
-                ret = EVENT_ERROR_SOCKET;
-                goto out;
-        }
+    /* Initialize UDP socket */
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        ret = EVENT_ERROR_SOCKET;
+        goto out;
+    }
 
-        memset (&hints, 0, sizeof (hints));
-        hints.ai_family = AF_UNSPEC;
+    if (ctx) {
+        volfile_server_transport = ctx->cmd_args.volfile_server_transport;
+    }
+    if (!volfile_server_transport) {
+        volfile_server_transport = "tcp";
+    }
 
-        /* Get Host name to send message */
-        if (ctx && ctx->cmd_args.volfile_server) {
-                /* If it is client code then volfile_server is set
-                   use that information to push the events. */
-                if ((getaddrinfo (ctx->cmd_args.volfile_server,
-                                  NULL, &hints, &result)) != 0) {
-                        ret = EVENT_ERROR_RESOLVE;
-                        goto out;
-                }
+    /* host = NULL returns localhost */
+    host = NULL;
+    if (ctx && ctx->cmd_args.volfile_server &&
+        (strcmp(volfile_server_transport, "unix"))) {
+        /* If it is client code then volfile_server is set
+           use that information to push the events. */
+        host = ctx->cmd_args.volfile_server;
+    }
 
-                if (get_ip_from_addrinfo (result, &host) == NULL) {
-                        ret = EVENT_ERROR_RESOLVE;
-                        goto out;
-                }
-        } else {
-                /* Localhost, Use the defined IP for localhost */
-                host = gf_strdup (EVENT_HOST);
-        }
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_ADDRCONFIG;
 
-        /* Socket Configurations */
-        server.sin_family = AF_INET;
-        server.sin_port = htons (EVENT_PORT);
-        server.sin_addr.s_addr = inet_addr (host);
-        memset (&server.sin_zero, '\0', sizeof (server.sin_zero));
+    if ((getaddrinfo(host, TOSTRING(EVENT_PORT), &hints, &result)) != 0) {
+        ret = EVENT_ERROR_RESOLVE;
+        goto out;
+    }
 
-        va_start (arguments, fmt);
-        ret = gf_vasprintf (&msg, fmt, arguments);
-        va_end (arguments);
+    va_start(arguments, fmt);
+    ret = gf_vasprintf(&msg, fmt, arguments);
+    va_end(arguments);
 
-        if (ret < 0) {
-                ret = EVENT_ERROR_INVALID_INPUTS;
-                goto out;
-        }
+    if (ret < 0) {
+        ret = EVENT_ERROR_INVALID_INPUTS;
+        goto out;
+    }
 
-        ret = gf_asprintf (&eventstr, "%u %d %s",
-                            (unsigned)time(NULL), event, msg);
+    ret = gf_asprintf(&eventstr, "%u %d %s", (unsigned)time(NULL), event, msg);
+    GF_FREE(msg);
+    if (ret <= 0) {
+        ret = EVENT_ERROR_MSG_FORMAT;
+        goto out;
+    }
 
-        if (ret <= 0) {
-                ret = EVENT_ERROR_MSG_FORMAT;
-                goto out;
-        }
+    /* Send Message */
+    if (sendto(sock, eventstr, strlen(eventstr), 0, result->ai_addr,
+               result->ai_addrlen) <= 0) {
+        ret = EVENT_ERROR_SEND;
+        goto out;
+    }
 
-        /* Send Message */
-        if (sendto (sock, eventstr, strlen (eventstr),
-                    0, (struct sockaddr *)&server, sizeof (server)) <= 0) {
-                ret = EVENT_ERROR_SEND;
-        }
+    ret = EVENT_SEND_OK;
 
-        ret = EVENT_SEND_OK;
+out:
+    if (sock >= 0) {
+        sys_close(sock);
+    }
 
- out:
-        if (sock >= 0) {
-                sys_close (sock);
-        }
+    /* Allocated by gf_asprintf */
+    if (eventstr)
+        GF_FREE(eventstr);
 
-        /* Allocated by gf_vasprintf */
-        if (msg)
-                GF_FREE (msg);
+    if (result)
+        freeaddrinfo(result);
 
-        /* Allocated by gf_asprintf */
-        if (eventstr)
-                GF_FREE (eventstr);
-
-        if (host)
-                GF_FREE (host);
-
-        if (result)
-                freeaddrinfo (result);
-
-        return ret;
+    return ret;
 }

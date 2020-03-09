@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 #
 #  Copyright (c) 2016 Red Hat, Inc. <http://www.redhat.com>
@@ -13,7 +13,10 @@
 from __future__ import print_function
 import sys
 import signal
-import SocketServer
+try:
+    import socketserver
+except ImportError:
+    import SocketServer as socketserver
 import socket
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
@@ -25,10 +28,13 @@ from eventsapiconf import AUTO_BOOL_ATTRIBUTES, AUTO_INT_ATTRIBUTES
 from utils import logger, PidFile, PidFileLockFailed, boolify
 
 
-class GlusterEventsRequestHandler(SocketServer.BaseRequestHandler):
+class GlusterEventsRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         data = self.request[0].strip()
+        if sys.version_info >= (3,):
+            data = self.request[0].strip().decode("utf-8")
+
         logger.debug("EVENT: {0} from {1}".format(repr(data),
                                                   self.client_address[0]))
         try:
@@ -46,7 +52,7 @@ class GlusterEventsRequestHandler(SocketServer.BaseRequestHandler):
             logger.warn("Unable to parse Event {0}".format(data))
             return
 
-        for k, v in data_dict.iteritems():
+        for k, v in data_dict.items():
             try:
                 if k in AUTO_BOOL_ATTRIBUTES:
                     data_dict[k] = boolify(v)
@@ -95,7 +101,7 @@ def init_event_server():
 
     # Start the Eventing Server, UDP Server
     try:
-        server = SocketServer.ThreadingUDPServer(
+        server = socketserver.ThreadingUDPServer(
             (SERVER_ADDRESS, port),
             GlusterEventsRequestHandler)
     except socket.error as e:

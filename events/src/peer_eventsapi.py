@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 #
 #  Copyright (c) 2016 Red Hat, Inc. <http://www.redhat.com>
@@ -18,6 +18,7 @@ import fcntl
 from errno import EACCES, EAGAIN
 import signal
 import sys
+import time
 
 import requests
 from prettytable import PrettyTable
@@ -26,27 +27,28 @@ from gluster.cliutils import (Cmd, node_output_ok, node_output_notok,
                               sync_file_to_peers, GlusterCmdException,
                               output_error, execute_in_peers, runcli,
                               set_common_args_func)
-from events.utils import LockedOpen
+from gfevents.utils import LockedOpen, get_jwt_token, save_https_cert
 
-from events.eventsapiconf import (WEBHOOKS_FILE_TO_SYNC,
-                                  WEBHOOKS_FILE,
-                                  DEFAULT_CONFIG_FILE,
-                                  CUSTOM_CONFIG_FILE,
-                                  CUSTOM_CONFIG_FILE_TO_SYNC,
-                                  EVENTSD,
-                                  CONFIG_KEYS,
-                                  BOOL_CONFIGS,
-                                  INT_CONFIGS,
-                                  PID_FILE,
-                                  RESTART_CONFIGS,
-                                  ERROR_INVALID_CONFIG,
-                                  ERROR_WEBHOOK_NOT_EXISTS,
-                                  ERROR_CONFIG_SYNC_FAILED,
-                                  ERROR_WEBHOOK_ALREADY_EXISTS,
-                                  ERROR_PARTIAL_SUCCESS,
-                                  ERROR_ALL_NODES_STATUS_NOT_OK,
-                                  ERROR_SAME_CONFIG,
-                                  ERROR_WEBHOOK_SYNC_FAILED)
+from gfevents.eventsapiconf import (WEBHOOKS_FILE_TO_SYNC,
+                                    WEBHOOKS_FILE,
+                                    DEFAULT_CONFIG_FILE,
+                                    CUSTOM_CONFIG_FILE,
+                                    CUSTOM_CONFIG_FILE_TO_SYNC,
+                                    EVENTSD,
+                                    CONFIG_KEYS,
+                                    BOOL_CONFIGS,
+                                    INT_CONFIGS,
+                                    PID_FILE,
+                                    RESTART_CONFIGS,
+                                    ERROR_INVALID_CONFIG,
+                                    ERROR_WEBHOOK_NOT_EXISTS,
+                                    ERROR_CONFIG_SYNC_FAILED,
+                                    ERROR_WEBHOOK_ALREADY_EXISTS,
+                                    ERROR_PARTIAL_SUCCESS,
+                                    ERROR_ALL_NODES_STATUS_NOT_OK,
+                                    ERROR_SAME_CONFIG,
+                                    ERROR_WEBHOOK_SYNC_FAILED,
+                                    CERTS_DIR)
 
 
 def handle_output_error(err, errcode=1, json_output=False):
@@ -171,8 +173,10 @@ def sync_to_peers(args):
         try:
             sync_file_to_peers(WEBHOOKS_FILE_TO_SYNC)
         except GlusterCmdException as e:
+            # Print stdout if stderr is empty
+            errmsg = e.message[2] if e.message[2] else e.message[1]
             handle_output_error("Failed to sync Webhooks file: [Error: {0}]"
-                                "{1}".format(e[0], e[2]),
+                                "{1}".format(e.message[0], errmsg),
                                 errcode=ERROR_WEBHOOK_SYNC_FAILED,
                                 json_output=args.json)
 
@@ -180,8 +184,10 @@ def sync_to_peers(args):
         try:
             sync_file_to_peers(CUSTOM_CONFIG_FILE_TO_SYNC)
         except GlusterCmdException as e:
+            # Print stdout if stderr is empty
+            errmsg = e.message[2] if e.message[2] else e.message[1]
             handle_output_error("Failed to sync Config file: [Error: {0}]"
-                                "{1}".format(e[0], e[2]),
+                                "{1}".format(e.message[0], errmsg),
                                 errcode=ERROR_CONFIG_SYNC_FAILED,
                                 json_output=args.json)
 
@@ -307,6 +313,8 @@ class WebhookAddCmd(Cmd):
         parser.add_argument("url", help="URL of Webhook")
         parser.add_argument("--bearer_token", "-t", help="Bearer Token",
                             default="")
+        parser.add_argument("--secret", "-s",
+                            help="Secret to add JWT Bearer Token", default="")
 
     def run(self, args):
         create_webhooks_file_if_not_exists(args)
@@ -318,7 +326,8 @@ class WebhookAddCmd(Cmd):
                                     errcode=ERROR_WEBHOOK_ALREADY_EXISTS,
                                     json_output=args.json)
 
-            data[args.url] = args.bearer_token
+            data[args.url] = {"token": args.bearer_token,
+                              "secret": args.secret}
             file_content_overwrite(WEBHOOKS_FILE, data)
 
         sync_to_peers(args)
@@ -331,6 +340,8 @@ class WebhookModCmd(Cmd):
         parser.add_argument("url", help="URL of Webhook")
         parser.add_argument("--bearer_token", "-t", help="Bearer Token",
                             default="")
+        parser.add_argument("--secret", "-s",
+                            help="Secret to add JWT Bearer Token", default="")
 
     def run(self, args):
         create_webhooks_file_if_not_exists(args)
@@ -342,7 +353,16 @@ class WebhookModCmd(Cmd):
                                     errcode=ERROR_WEBHOOK_NOT_EXISTS,
                                     json_output=args.json)
 
-            data[args.url] = args.bearer_token
+            if isinstance(data[args.url], str) or \
+               isinstance(data[args.url], unicode):
+                data[args.url]["token"] = data[args.url]
+
+            if args.bearer_token != "":
+                data[args.url]["token"] = args.bearer_token
+
+            if args.secret != "":
+                data[args.url]["secret"] = args.secret
+
             file_content_overwrite(WEBHOOKS_FILE, data)
 
         sync_to_peers(args)
@@ -376,18 +396,57 @@ class NodeWebhookTestCmd(Cmd):
     def args(self, parser):
         parser.add_argument("url")
         parser.add_argument("bearer_token")
+        parser.add_argument("secret")
 
     def run(self, args):
         http_headers = {}
+        hashval = ""
         if args.bearer_token != ".":
-            http_headers["Authorization"] = "Bearer " + args.bearer_token
+            hashval = args.bearer_token
 
-        try:
-            resp = requests.post(args.url, headers=http_headers)
-        except requests.ConnectionError as e:
-            node_output_notok("{0}".format(e))
-        except requests.exceptions.InvalidSchema as e:
-            node_output_notok("{0}".format(e))
+        if args.secret != ".":
+            hashval = get_jwt_token(args.secret, "TEST", int(time.time()))
+
+        if hashval:
+            http_headers["Authorization"] = "Bearer " + hashval
+
+        urldata = requests.utils.urlparse(args.url)
+        parts = urldata.netloc.split(":")
+        domain = parts[0]
+        # Default https port if not specified
+        port = 443
+        if len(parts) == 2:
+            port = int(parts[1])
+
+        cert_path = os.path.join(CERTS_DIR, args.url.replace("/", "_").strip())
+        verify = True
+        while True:
+            try:
+                resp = requests.post(args.url, headers=http_headers,
+                                     verify=verify)
+                # Successful webhook push
+                break
+            except requests.exceptions.SSLError as e:
+                # If verify is equal to cert path, but still failed with
+                # SSLError, Looks like some issue with custom downloaded
+                # certificate, Try with verify = false
+                if verify == cert_path:
+                    verify = False
+                    continue
+
+                # If verify is instance of bool and True, then custom cert
+                # is required, download the cert and retry
+                try:
+                    save_https_cert(domain, port, cert_path)
+                    verify = cert_path
+                except Exception:
+                    verify = False
+
+                # Done with collecting cert, continue
+                continue
+            except Exception as e:
+                node_output_notok("{0}".format(e))
+                break
 
         if resp.status_code != 200:
             node_output_notok("{0}".format(resp.status_code))
@@ -401,16 +460,23 @@ class WebhookTestCmd(Cmd):
     def args(self, parser):
         parser.add_argument("url", help="URL of Webhook")
         parser.add_argument("--bearer_token", "-t", help="Bearer Token")
+        parser.add_argument("--secret", "-s",
+                            help="Secret to generate Bearer Token")
 
     def run(self, args):
         url = args.url
         bearer_token = args.bearer_token
+        secret = args.secret
+
         if not args.url:
             url = "."
         if not args.bearer_token:
             bearer_token = "."
+        if not args.secret:
+            secret = "."
 
-        out = execute_in_peers("node-webhook-test", [url, bearer_token])
+        out = execute_in_peers("node-webhook-test", [url, bearer_token,
+                                                     secret])
 
         if not args.json:
             table = PrettyTable(["NODE", "NODE STATUS", "WEBHOOK STATUS"])

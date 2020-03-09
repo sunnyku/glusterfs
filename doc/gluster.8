@@ -35,7 +35,13 @@ The Gluster Console Manager is a command line utility for elastic volume managem
 \fB\ volume info [all|<VOLNAME>] \fR
 Display information about all volumes, or the specified volume.
 .TP
-\fB\ volume create <NEW-VOLNAME> [stripe <COUNT>] [replica <COUNT>] [disperse [<COUNT>]] [redundancy <COUNT>] [transport <tcp|rdma|tcp,rdma>] <NEW-BRICK> ... \fR
+\fB\ volume list \fR
+List all volumes in cluster
+.TP
+\fB\ volume status [all | <VOLNAME> [nfs|shd|<BRICK>|quotad]] [detail|clients|mem|inode|fd|callpool|tasks|client-list] \fR
+Display status of all or specified volume(s)/brick
+.TP
+\fB\ volume create <NEW-VOLNAME> [stripe <COUNT>] [[replica <COUNT> [arbiter <COUNT>]]|[replica 2 thin-arbiter 1]] [disperse [<COUNT>]] [disperse-data <COUNT>] [redundancy <COUNT>] [transport <tcp|rdma|tcp,rdma>] <NEW-BRICK> ... <TA-BRICK> \fR
 Create a new volume of the specified type using the specified bricks and transport type (the default transport type is tcp).
 To create a volume with both transports (tcp and rdma), give 'transport tcp,rdma' as an option.
 .TP
@@ -51,8 +57,17 @@ Stop the specified volume.
 \fB\ volume set <VOLNAME> <OPTION> <PARAMETER> [<OPTION> <PARAMETER>] ... \fR
 Set the volume options.
 .TP
-\fB\ volume get <VOLNAME> <OPTION/all>\fR
-Get the volume options.
+\fB\ volume get <VOLNAME/all> <OPTION/all> \fR
+Get the value of the all options or given option for volume <VOLNAME> or all option. gluster volume get all all is to get all global options
+.TP
+\fB\ volume reset <VOLNAME> [option] [force] \fR
+Reset all the reconfigured options
+.TP
+\fB\ volume barrier <VOLNAME> {enable|disable} \fR
+Barrier/unbarrier file operations on a volume
+.TP
+\fB\ volume clear-locks <VOLNAME> <path> kind {blocked|granted|all}{inode [range]|entry [basename]|posix [range]} \fR
+Clear locks held on path
 .TP
 \fB\ volume help \fR
 Display help for the volume command.
@@ -69,6 +84,9 @@ Remove the specified brick from the specified volume.
 If you remove the brick, the data stored in that brick will not be available. You can migrate data from one brick to another using
 .B replace-brick
 option.
+.TP
+\fB\ volume reset-brick <VOLNAME> <SOURCE-BRICK> {{start} | {<NEW-BRICK> commit}} \fR
+Brings down or replaces the specified source brick with the new brick.
 .TP
 \fB\ volume replace-brick <VOLNAME> <SOURCE-BRICK> <NEW-BRICK> commit force \fR
 Replace the specified source brick with a new brick.
@@ -91,6 +109,18 @@ Locate the log file for corresponding volume/brick.
 .TP
 \fB\ volume log rotate <VOLNAME> [BRICK] \fB
 Rotate the log file for corresponding volume/brick.
+.TP
+\fB\ volume profile <VOLNAME> {start|info [peek|incremental [peek]|cumulative|clear]|stop} [nfs] \fR
+Profile operations on the volume. Once started, volume profile <volname> info provides cumulative statistics of the FOPs performed.
+.TP
+\fB\ volume top <VOLNAME> {open|read|write|opendir|readdir|clear} [nfs|brick <brick>] [list-cnt <value>] | {read-perf|write-perf} [bs <size> count <count>] [brick <brick>] [list-cnt <value>] \fR
+Generates a profile of a volume representing the performance and bottlenecks/hotspots of each brick.
+.TP
+\fB\ volume statedump <VOLNAME> [[nfs|quotad] [all|mem|iobuf|callpool|priv|fd|inode|history]... | [client <hostname:process-id>]] \fR
+Dumps the in memory state of the specified process or the bricks of the volume.
+.TP
+\fB\ volume sync <HOSTNAME> [all|<VOLNAME>] \fR
+Sync the volume information from a peer
 .SS "Peer Commands"
 .TP
 \fB\ peer probe <HOSTNAME> \fR
@@ -102,27 +132,58 @@ Detach the specified peer.
 \fB\ peer status \fR
 Display the status of peers.
 .TP
+\fB\ pool list \fR
+List all the nodes in the pool (including localhost)
+.TP
 \fB\ peer help \fR
 Display help for the peer command.
-.SS "Tier Commands"
+.SS "Quota Commands"
 .TP
-\fB\ volume tier <VOLNAME> attach [<replica COUNT>] <NEW-BRICK>... \fR
-Attach to an existing volume a tier of specified type using the specified bricks.
+\fB\ volume quota <VOLNAME> enable \fR
+Enable quota on the specified volume. This will cause all the directories in the filesystem hierarchy to be accounted and updated thereafter on each operation in the the filesystem. To kick start this accounting, a crawl is done over the hierarchy with an auxiliary client.
 .TP
-\fB\ volume tier <VOLNAME> status \fR
-Display statistics on data migration between the hot and cold tiers.
+\fB\ volume quota <VOLNAME> disable \fR
+Disable quota on the volume. This will disable enforcement and accounting in the filesystem. Any configured limits will be lost.
 .TP
-\fB\ volume tier <VOLNAME> detach start\fR
-Begin detaching the hot tier from the volume. Data will be moved from the hot tier to the cold tier.
+\fB\ volume quota <VOLNAME> limit-usage <PATH> <SIZE> [<PERCENT>] \fR
+Set a usage  limit on the given path. Any previously set limit is overridden to the new value. The soft limit can optionally be specified (as a percentage of hard limit). If soft limit percentage is not provided the default soft limit value for the volume is used to decide the soft limit.
 .TP
-\fB\ volume tier <VOLNAME> detach commit [force]\fR
-Commit detaching the hot tier from the volume. The volume will revert to its original state before the hot tier was attached.
+\fB\ volume quota <VOLNAME> limit-objects <PATH> <SIZE> [<PERCENT>] \fR
+Set an inode limit on the given path. Any previously set limit is overridden to the new value. The soft limit can optionally be specified (as a percentage of hard limit). If soft limit percentage is not provided the default soft limit value for the volume is used to decide the soft limit.
 .TP
-\fB\ volume tier <VOLNAME> detach status\fR
-Check status of data movement from the hot to cold tier.
+NOTE: valid units of SIZE are : B, KB, MB, GB, TB, PB. If no unit is specified, the unit defaults to bytes.
 .TP
-\fB\ volume tier <VOLNAME> detach stop\fR
-Stop detaching the hot tier from the volume.
+\fB\ volume quota <VOLNAME> remove <PATH> \fR
+Remove any usage limit configured on the specified directory. Note that if any limit is configured on the ancestors of this directory (previous directories along the path), they will still be honored and enforced.
+.TP
+\fB\ volume quota <VOLNAME> remove-objects <PATH> \fR
+Remove any inode limit configured on the specified directory. Note that if any limit is configured on the ancestors of this directory (previous directories along the path), they will still be honored and enforced.
+.TP
+\fB\ volume quota <VOLNAME> list <PATH> \fR
+Lists the  usage and limits configured on directory(s). If a path is given only the limit that has been configured on the directory(if any) is displayed along with the directory's usage. If no path is given, usage and limits are displayed for all directories that has limits configured.
+.TP
+\fB\ volume quota <VOLNAME> list-objects <PATH> \fR
+Lists the inode usage and inode limits configured on directory(s). If a path is given only the limit that has been configured on the directory(if any) is displayed along with the directory's inode usage. If no path is given, usage and limits are displayed for all directories that has limits configured.
+.TP
+\fB\ volume quota <VOLNAME> default-soft-limit <PERCENT> \fR
+Set the percentage value for default soft limit for the volume.
+.TP
+\fB\ volume quota <VOLNAME> soft-timeout <TIME> \fR
+Set the soft timeout for the volume. The interval in which limits are retested before the soft limit is breached.
+.TP
+\fB\ volume quota <VOLNAME> hard-timeout <TIME> \fR
+Set the hard timeout for the volume. The interval in which limits are retested after the soft limit is breached.
+.TP
+\fB\ volume quota <VOLNAME> alert-time <TIME> \fR
+Set the frequency in which warning messages need to be logged (in the brick logs) once soft limit is breached.
+.TP
+\fB\ volume inode-quota <VOLNAME> enable/disable \fR
+Enable/disable inode-quota for <VOLNAME>
+.TP
+\fB\ volume quota help \fR
+Display help for volume quota commands
+.TP
+NOTE: valid units of time and their symbols are : hours(h/hr), minutes(m/min), seconds(s/sec), weeks(w/wk), Days(d/days).
 .SS "Geo-replication Commands"
 .TP
 \fI\ Note\fR: password-less ssh, from the master node (where these commands are executed) to the slave node <SLAVE_HOST>, is a prerequisite for the geo-replication commands.
@@ -130,8 +191,10 @@ Stop detaching the hot tier from the volume.
 \fB\ system:: execute gsec_create\fR
 Generates pem keys which are required for push-pem
 .TP
-\fB\ volume geo-replication <MASTER_VOL> <SLAVE_HOST>::<SLAVE_VOL> create [push-pem] [force]\fR
+\fB\ volume geo-replication <MASTER_VOL> <SLAVE_HOST>::<SLAVE_VOL> create [[ssh-port n][[no-verify]|[push-pem]]] [force]\fR
 Create a new geo-replication session from <MASTER_VOL> to <SLAVE_HOST> host machine having <SLAVE_VOL>.
+Use ssh-port n if custom SSH port is configured in slave nodes.
+Use no-verify if the rsa-keys of nodes in master volume is distributed to slave nodes through an external agent.
 Use push-pem to push the keys automatically.
 .TP
 \fB\ volume geo-replication <MASTER_VOL> <SLAVE_HOST>::<SLAVE_VOL> {start|stop} [force] \fR
@@ -155,17 +218,25 @@ Use "!<OPTION>" to reset option <OPTION> to default value.
 \fB\ volume bitrot <VOLNAME> {enable|disable} \fR
 Enable/disable bitrot for volume <VOLNAME>
 .TP
+\fB\ volume bitrot <VOLNAME> signing-time <time-in-secs> \fR
+Waiting time for an object after last fd is closed to start signing process.
+.TP
+\fB\ volume bitrot <VOLNAME> signer-threads <count> \fR
+Number of signing process threads. Usually set to number of available cores.
+.TP
 \fB\ volume bitrot <VOLNAME> scrub-throttle {lazy|normal|aggressive} \fR
 Scrub-throttle value is a measure of how fast or slow the scrubber scrubs the filesystem for volume <VOLNAME>
 .TP
-\fB\ volume bitrot <VOLNAME> scrub-frequency {daily|weekly|biweekly|monthly} \fR
+\fB\ volume bitrot <VOLNAME> scrub-frequency {hourly|daily|weekly|biweekly|monthly} \fR
 Scrub frequency for volume <VOLNAME>
 .TP
 \fB\ volume bitrot <VOLNAME> scrub {pause|resume|status|ondemand} \fR
 Pause/Resume scrub. Upon resume, scrubber continues where it left off. status option shows the statistics of scrubber. ondemand option starts the scrubbing immediately if the scrubber is not paused or already running.
 .TP
+\fB\ volume bitrot help \fR
+Display help for volume bitrot commands
+.TP
 .SS "Snapshot Commands"
-.PP
 .TP
 \fB\ snapshot create <snapname> <volname> [no-timestamp] [description <description>] [force] \fR
 Creates a snapshot of a GlusterFS volume. User can provide a snap-name and a description to identify the snap. Snap will be created by appending timestamp in GMT. User can override this behaviour using "no-timestamp" option. The description cannot be more than 1024 characters. To be able to take a snapshot, volume should be present and it should be in started state.
@@ -268,7 +339,7 @@ Selects <HOSTNAME:BRICKNAME> as the source for all the files that are in split-b
 Selects the split-brained <FILE> present in <HOSTNAME:BRICKNAME> as source and completes heal.
 .SS "Other Commands"
 .TP
-\fB\ get-state [<daemon>] [[odir </path/to/output/dir/>] [file <filename>]] [detail] \fR
+\fB\ get-state [<daemon>] [[odir </path/to/output/dir/>] [file <filename>]] [detail|volumeoptions] \fR
 Get local state representation of mentioned daemon and store data in provided path information
 .TP
 \fB\ help \fR

@@ -26,8 +26,11 @@ TEST $CLI volume set $V0 quick-read off
 TEST $CLI volume set $V0 read-ahead off
 TEST $CLI volume set $V0 write-behind off
 TEST $CLI volume set $V0 io-cache off
+TEST $CLI volume set $V0 cluster.data-self-heal on
+TEST $CLI volume set $V0 cluster.metadata-self-heal on
+TEST $CLI volume set $V0 cluster.entry-self-heal on
 
-TEST glusterfs --volfile-id=/$V0 --volfile-server=$H0 $M0 --attribute-timeout=0 --entry-timeout=0
+TEST $GFS --volfile-id=/$V0 --volfile-server=$H0 $M0
 
 
 TEST mkdir -p $M0/a
@@ -53,6 +56,8 @@ TEST chmod 757 $M0/a/file
 TEST $CLI volume start $V0 force
 EXPECT_WITHIN $CHILD_UP_TIMEOUT "1" afr_child_up_status $V0 1;
 
+#Trigger entry heal of $M0/a
+getfattr -n user.nosuchattr $M0/a
 dd if=$M0/a/file of=/dev/null bs=1024k
 #read fails, but heal is triggered.
 TEST [ $? -ne 0 ]
@@ -72,7 +77,7 @@ afr_get_specific_changelog_xattr $B0/$V0"2"/a/file trusted.afr.$V0-client-1 "dat
 EXPECT_WITHIN $HEAL_TIMEOUT "00000000" \
 afr_get_specific_changelog_xattr $B0/$V0"1"/a trusted.afr.$V0-client-0 "entry"
 
-EXPECT_WITHIN HEAL_TIMEOUT "00000000" \
+EXPECT_WITHIN $HEAL_TIMEOUT "00000000" \
 afr_get_specific_changelog_xattr $B0/$V0"1"/a trusted.afr.$V0-client-1 "entry"
 
 EXPECT_WITHIN $HEAL_TIMEOUT "00000000" \

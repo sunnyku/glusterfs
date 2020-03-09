@@ -4,6 +4,8 @@
 . $(dirname $0)/../../volume.rc
 . $(dirname $0)/../../nfs.rc
 
+#G_TESTDEF_TEST_STATUS_CENTOS6=NFS_TEST
+
 #This script checks that nfs mount does not fail lookup on files with split-brain
 cleanup;
 
@@ -11,6 +13,7 @@ TEST glusterd
 TEST pidof glusterd
 TEST $CLI volume create $V0 replica 2 $H0:$B0/${V0}{0,1}
 TEST $CLI volume set $V0 self-heal-daemon off
+TEST $CLI volume set $V0 cluster.eager-lock off
 TEST $CLI volume set $V0 nfs.disable false
 TEST $CLI volume start $V0
 EXPECT_WITHIN $NFS_EXPORT_TIMEOUT "1" is_nfs_export_available;

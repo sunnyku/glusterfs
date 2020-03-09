@@ -1,4 +1,7 @@
-sbin_PROGRAMS = glfsheal
+if WITH_SERVER
+scriptdir = $(GLUSTERFS_LIBEXECDIR)
+script_PROGRAMS = glfsheal
+endif
 
 glfsheal_SOURCES = glfs-heal.c
 
@@ -16,12 +19,9 @@ AM_CPPFLAGS = $(GF_CPPFLAGS) \
 	-I$(top_srcdir)/rpc/xdr/src\
 	-I$(top_builddir)/rpc/xdr/src\
 	-I$(top_srcdir)/api/src\
-	-I$(top_srcdir)/contrib/argp-standalone\
-	-DDATADIR=\"$(localstatedir)\" \
-	-DSBIN_DIR=\"$(sbindir)\" \
-	$(XML_CPPFLAGS)
+	-DDATADIR=\"$(localstatedir)\"
 
-AM_CFLAGS = -Wall $(GF_CFLAGS)
+AM_CFLAGS = -Wall $(GF_CFLAGS) $(XML_CFLAGS)
 
 CLEANFILES =
 

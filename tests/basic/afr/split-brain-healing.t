@@ -20,13 +20,14 @@ function get_replicate_subvol_number {
 cleanup;
 
 AREQUAL_PATH=$(dirname $0)/../../utils
+GET_MDATA_PATH=$(dirname $0)/../../utils
 CFLAGS=""
 test "`uname -s`" != "Linux" && {
-    CFLAGS="$CFLAGS -I$(dirname $0)/../../../contrib/argp-standalone ";
-    CFLAGS="$CFLAGS -L$(dirname $0)/../../../contrib/argp-standalone -largp ";
     CFLAGS="$CFLAGS -lintl";
 }
 build_tester $AREQUAL_PATH/arequal-checksum.c $CFLAGS
+build_tester $GET_MDATA_PATH/get-mdata-xattr.c
+
 TEST glusterd
 TEST pidof glusterd
 TEST $CLI volume create $V0 replica 2 $H0:$B0/${V0}{1,2,3,4}
@@ -34,6 +35,7 @@ TEST $CLI volume set $V0 cluster.self-heal-daemon off
 TEST $CLI volume set $V0 cluster.data-self-heal off
 TEST $CLI volume set $V0 cluster.metadata-self-heal off
 TEST $CLI volume set $V0 cluster.entry-self-heal off
+TEST $CLI volume set $V0 ctime off
 TEST $CLI volume start $V0
 TEST $GFS --volfile-id=/$V0 --volfile-server=$H0 $M0
 
@@ -78,7 +80,6 @@ do
 done
 
 BIGGER_FILE_SIZE=$(stat -c %s file1)
-
 TEST $CLI volume start $V0 force
 EXPECT_WITHIN $PROCESS_UP_TIMEOUT "1" afr_child_up_status $V0 1
 EXPECT_WITHIN $PROCESS_UP_TIMEOUT "1" afr_child_up_status $V0 3
@@ -155,13 +156,13 @@ EXPECT $SMALLER_FILE_SIZE stat -c %s file4
 subvolume=$(get_replicate_subvol_number file5)
 if [ $subvolume == 0 ]
 then
-        mtime1=$(stat -c %Y $B0/${V0}1/file5)
-        mtime2=$(stat -c %Y $B0/${V0}2/file5)
+        mtime1=$(get_mtime $B0/${V0}1/file5)
+        mtime2=$(get_mtime $B0/${V0}2/file5)
         LATEST_MTIME=$(($mtime1 > $mtime2 ? $mtime1:$mtime2))
 elif [ $subvolume == 1 ]
 then
-        mtime1=$(stat -c %Y $B0/${V0}3/file5)
-        mtime2=$(stat -c %Y $B0/${V0}4/file5)
+        mtime1=$(get_mtime $B0/${V0}3/file5)
+        mtime2=$(get_mtime $B0/${V0}4/file5)
         LATEST_MTIME=$(($mtime1 > $mtime2 ? $mtime1:$mtime2))
 fi
 $CLI volume heal $V0 split-brain latest-mtime /file5
@@ -169,12 +170,12 @@ EXPECT "0" echo $?
 
 if [ $subvolume == 0 ]
 then
-        mtime1_after_heal=$(stat -c %Y $B0/${V0}1/file5)
-        mtime2_after_heal=$(stat -c %Y $B0/${V0}2/file5)
+        mtime1_after_heal=$(get_mtime $B0/${V0}1/file5)
+        mtime2_after_heal=$(get_mtime $B0/${V0}2/file5)
 elif [ $subvolume == 1 ]
 then
-        mtime1_after_heal=$(stat -c %Y $B0/${V0}3/file5)
-        mtime2_after_heal=$(stat -c %Y $B0/${V0}4/file5)
+        mtime1_after_heal=$(get_mtime $B0/${V0}3/file5)
+        mtime2_after_heal=$(get_mtime $B0/${V0}4/file5)
 fi
 
 #TODO: To below comparisons on full sub-second resolution
@@ -191,14 +192,14 @@ subvolume=$(get_replicate_subvol_number file6)
 if [ $subvolume == 0 ]
 then
         GFID=$(gf_get_gfid_xattr $B0/${V0}1/file6)
-        mtime1=$(stat -c %Y $B0/${V0}1/file6)
-        mtime2=$(stat -c %Y $B0/${V0}2/file6)
+        mtime1=$(get_mtime $B0/${V0}1/file6)
+        mtime2=$(get_mtime $B0/${V0}2/file6)
         LATEST_MTIME=$(($mtime1 > $mtime2 ? $mtime1:$mtime2))
 elif [ $subvolume == 1 ]
 then
         GFID=$(gf_get_gfid_xattr $B0/${V0}3/file6)
-        mtime1=$(stat -c %Y $B0/${V0}3/file6)
-        mtime2=$(stat -c %Y $B0/${V0}4/file6)
+        mtime1=$(get_mtime $B0/${V0}3/file6)
+        mtime2=$(get_mtime $B0/${V0}4/file6)
         LATEST_MTIME=$(($mtime1 > $mtime2 ? $mtime1:$mtime2))
 fi
 GFIDSTR="gfid:$(gf_gfid_xattr_to_str $GFID)"
@@ -207,12 +208,12 @@ EXPECT "0" echo $?
 
 if [ $subvolume == 0 ]
 then
-        mtime1_after_heal=$(stat -c %Y $B0/${V0}1/file6)
-        mtime2_after_heal=$(stat -c %Y $B0/${V0}2/file6)
+        mtime1_after_heal=$(get_mtime $B0/${V0}1/file6)
+        mtime2_after_heal=$(get_mtime $B0/${V0}2/file6)
 elif [ $subvolume == 1 ]
 then
-        mtime1_after_heal=$(stat -c %Y $B0/${V0}3/file6)
-        mtime2_after_heal=$(stat -c %Y $B0/${V0}4/file6)
+        mtime1_after_heal=$(get_mtime $B0/${V0}3/file6)
+        mtime2_after_heal=$(get_mtime $B0/${V0}4/file6)
 fi
 
 #TODO: To below comparisons on full sub-second resolution
@@ -256,4 +257,5 @@ EXPECT "1" echo $?
 
 cd -
 TEST rm $AREQUAL_PATH/arequal-checksum
+TEST rm $GET_MDATA_PATH/get-mdata-xattr
 cleanup

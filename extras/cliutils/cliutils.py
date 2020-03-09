@@ -20,7 +20,14 @@ _common_args_func = lambda p: True
 
 
 class GlusterCmdException(Exception):
-    pass
+    def __init__(self, message):
+        self.message = message
+        try:
+            # Python 3
+            super().__init__(message)
+        except TypeError:
+            # Python 2
+            super(GlusterCmdException, self).__init__(message)
 
 
 def get_node_uuid():
@@ -71,7 +78,8 @@ def node_output_notok(message):
 
 
 def execute(cmd):
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         universal_newlines=True)
     out, err = p.communicate()
     return p.returncode, out, err
 

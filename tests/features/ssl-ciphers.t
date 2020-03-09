@@ -33,16 +33,24 @@ wait_mount() {
 openssl_connect() {
 	ssl_opt="-verify 3 -verify_return_error -CAfile $SSL_CA"
 	ssl_opt="$ssl_opt -crl_check_all -CApath $TMPDIR"
-	#echo openssl s_client $ssl_opt $@ > /dev/tty
-	#read -p "Continue? " nothing
-	CIPHER=`echo "" |
-                openssl s_client $ssl_opt $@ 2>/dev/null |
-		awk '/^    Cipher/{print $3}'`
-	if [ "x${CIPHER}" = "x" -o "x${CIPHER}" = "x0000" ] ; then
+        cmd="echo "" | openssl s_client $ssl_opt $@ 2>/dev/null"
+        CIPHER=$(eval $cmd | awk -F "Cipher is" '{print $2}' | tr -d '[:space:]' | awk -F " " '{print $1}')
+	if [ "x${CIPHER}" = "x" -o "x${CIPHER}" = "x0000" -o "x${CIPHER}" = "x(NONE)" ] ; then
 		echo "N"
 	else
 		echo "Y"
 	fi
+}
+
+#Validate the cipher to pass EXPECT test case before call openssl_connect
+check_cipher() {
+       cmd="echo "" | openssl s_client $@ 2> /dev/null"
+       cipher=$(eval $cmd |awk -F "Cipher is" '{print $2}' | tr -d '[:space:]' | awk -F " " '{print $1}')
+       if [ "x${cipher}" = "x" -o "x${cipher}" = "x0000" -o "x${cipher}" = "x(NONE)" ] ; then
+                echo "N"
+        else
+                echo "Y"
+       fi
 }
 
 cleanup;
@@ -65,7 +73,7 @@ TEST glusterd
 TEST pidof glusterd
 TEST $CLI volume info;
 
-TEST openssl genrsa -out $SSL_KEY 1024 2>/dev/null
+TEST openssl genrsa -out $SSL_KEY 2048 2>/dev/null
 TEST openssl req -config $SSL_CFG -new -key $SSL_KEY -x509 \
                   -subj /CN=CA -out $SSL_CA
 TEST openssl req -config $SSL_CFG -new -key $SSL_KEY \
@@ -106,28 +114,36 @@ EXPECT "N" openssl_connect -ssl3 -connect $H0:$BRICK_PORT
 EXPECT "N" openssl_connect -tls1 -connect $H0:$BRICK_PORT
 
 # Test a HIGH CBC cipher
-EXPECT "Y" openssl_connect -cipher AES256-SHA -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher AES256-SHA -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher AES256-SHA -connect $H0:$BRICK_PORT
 
 # Test EECDH
-EXPECT "Y" openssl_connect -cipher EECDH -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher EECDH -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher EECDH -connect $H0:$BRICK_PORT
 
 # test MD5 fails
-EXPECT "N" openssl_connect -cipher DES-CBC3-MD5 -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher DES-CBC3-MD5 -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher DES-CBC3-MD5 -connect $H0:$BRICK_PORT
 
 # test RC4 fails
-EXPECT "N" openssl_connect -cipher RC4-SHA -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher RC4-SHA -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher RC4-SHA -connect $H0:$BRICK_PORT
 
 # test eNULL fails
-EXPECT "N" openssl_connect -cipher NULL-SHA256 -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher NULL-SHA256 -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher NULL-SHA256 -connect $H0:$BRICK_PORT
 
 # test SHA2
-EXPECT "Y" openssl_connect -cipher AES256-SHA256 -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher AES256-SHA256 -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher AES256-SHA256 -connect $H0:$BRICK_PORT
 
 # test GCM
-EXPECT "Y" openssl_connect -cipher AES256-GCM-SHA384 -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher AES256-GCM-SHA384 -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher AES256-GCM-SHA384 -connect $H0:$BRICK_PORT
 
 # Test DH fails without DH params
-EXPECT "N" openssl_connect -cipher EDH -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher EDH -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher EDH -connect $H0:$BRICK_PORT
 
 # Test DH with DH params
 TEST $CLI volume set $V0 ssl.dh-param `pwd`/`dirname $0`/dh1024.pem
@@ -145,8 +161,10 @@ TEST $CLI volume stop $V0
 TEST $CLI volume start $V0
 EXPECT_WITHIN $CHILD_UP_TIMEOUT "1" online_brick_count
 BRICK_PORT=`brick_port $V0`
-EXPECT "Y" openssl_connect -cipher AES256-SHA -connect $H0:$BRICK_PORT
-EXPECT "N" openssl_connect -cipher AES128-SHA -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher AES256-SHA -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher AES256-SHA -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher AES128-SHA -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher AES128-SHA -connect $H0:$BRICK_PORT
 
 # Test the ec-curve option
 TEST $CLI volume set $V0 ssl.cipher-list EECDH:EDH:!TLSv1
@@ -155,8 +173,10 @@ TEST $CLI volume stop $V0
 TEST $CLI volume start $V0
 EXPECT_WITHIN $CHILD_UP_TIMEOUT "1" online_brick_count
 BRICK_PORT=`brick_port $V0`
-EXPECT "N" openssl_connect -cipher AES256-SHA -connect $H0:$BRICK_PORT
-EXPECT "Y" openssl_connect -cipher EECDH -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher AES256-SHA -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher AES256-SHA -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher EECDH -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher EECDH -connect $H0:$BRICK_PORT
 
 TEST $CLI volume set $V0 ssl.ec-curve invalid
 EXPECT invalid volume_option $V0 ssl.ec-curve
@@ -164,7 +184,8 @@ TEST $CLI volume stop $V0
 TEST $CLI volume start $V0
 EXPECT_WITHIN $CHILD_UP_TIMEOUT "1" online_brick_count
 BRICK_PORT=`brick_port $V0`
-EXPECT "N" openssl_connect -cipher EECDH -connect $H0:$BRICK_PORT
+cph=`check_cipher -cipher EECDH -connect $H0:$BRICK_PORT`
+EXPECT "$cph" openssl_connect -cipher EECDH -connect $H0:$BRICK_PORT
 
 TEST $CLI volume set $V0 ssl.ec-curve secp521r1
 EXPECT secp521r1 volume_option $V0 ssl.ec-curve
@@ -175,8 +196,6 @@ BRICK_PORT=`brick_port $V0`
 EXPECT "Y" openssl_connect -cipher EECDH -connect $H0:$BRICK_PORT
 
 # test revocation
-# no need to restart the volume since the options are used
-# by the client here.
 TEST $CLI volume set $V0 ssl.crl-path $TMPDIR
 EXPECT $TMPDIR volume_option $V0 ssl.crl-path
 $GFS --volfile-id=$V0 --volfile-server=$H0 $M0
@@ -189,14 +208,25 @@ TEST openssl ca -batch -config $SSL_CFG -revoke $SSL_CERT 2>&1
 TEST openssl ca -config $SSL_CFG -gencrl -out $SSL_CRL 2>&1
 
 # Failed once revoked
+# Although client fails to mount without restarting the server after crl-path
+# is set when no actual crl file is found on the client, it would also fail
+# when server is restarted for the same reason. Since the socket initialization
+# code is the same for client and server, the crl verification flags need to
+# be turned off for the client to avoid SSL searching for CRLs in the
+# ssl.crl-path. If no CRL files are found in the ssl.crl-path, SSL fails the
+# connect() attempt on the client.
+TEST $CLI volume stop $V0
+TEST $CLI volume start $V0
 $GFS --volfile-id=$V0 --volfile-server=$H0 $M0
 EXPECT "N" wait_mount $M0
 TEST ! test -f $TEST_FILE
 EXPECT_WITHIN $UMOUNT_TIMEOUT "Y" force_umount $M0
 
 # Succeed with CRL disabled
+TEST $CLI volume stop $V0
 TEST $CLI volume set $V0 ssl.crl-path NULL
 EXPECT NULL volume_option $V0 ssl.crl-path
+TEST $CLI volume start $V0
 $GFS --volfile-id=$V0 --volfile-server=$H0 $M0
 EXPECT "Y" wait_mount $M0
 TEST test -f $TEST_FILE
